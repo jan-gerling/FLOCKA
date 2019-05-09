@@ -29,3 +29,23 @@ There are a few guidelines for our project please follow them it will make us al
   - Create a new branch **pull request for every feature**. Do not make any changes not related to the current feature.
   - **Prepare** your **pull requests**, see below.
   - Write reasonable git [commit messages] (<https://chris.beams.io/posts/git-commit/>)
+
+## Executing SBT
+
+Make sure sbt is executable:
+```
+chmod u+x ./sbt
+chmod u+x ./sbt-dist/bin/sbt
+
+#I guess you may also want to add sbt to your PATH permanently
+echo "alias sbt='/path/to/project/sbt'"
+```
+
+Some sbt commands:
+* sbt -- Runs an interactive sbt shell
+* sbt compile -- Compiles the project
+* sbt run -- Runs the project
+* sbt test -- Tests the project
+
+Works similarly to Maven in the sense that targets will execute previous targets (e.g. test will compile if needed)
+
