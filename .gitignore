@@ -1,3 +1,40 @@
+
+# Generated from compilation
+target
+dist/*
+
+# Idea files
+*.iml
+*.ipr
+*.iws
+.idea
+out
+
+# Vim
+tags
+.*.swp
+.*.swo
+
+# Eclipse 
+build
+.classpath
+.project
+.settings
+org.scala-ide.sdt.core/META-INF/MANIFEST.MF
+org.scala-ide.sdt.update-site/site.xml
+
+# MacOS
+.DS_Store
+
+# Misc SBT that may be generated
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+.history
+.cache
+.lib/
+
 # Compiled class file
 *.class
 
