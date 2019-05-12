@@ -1,4 +1,4 @@
-# lam-dal
+# FLOCKA
 
 Welcome to our charming project, **we love** to see **you** here!
 If you have any suggestions or comments please post them here [#2](https://github.com/jan-gerling/lam-dal/issues/2).
