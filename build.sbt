@@ -1,4 +1,4 @@
-name := "lam-dal"
+name := "flocka"
 
 version := "1.0"
 
@@ -11,5 +11,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
 	"com.typesafe.akka" %% "akka-http" % "10.1.8",
   "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8",
+  "com.typesafe.akka" %% "akka-stream" % akkaVersion,
+  "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
   "org.scalatest" %% "scalatest" % "3.0.5" % "test"
 )
