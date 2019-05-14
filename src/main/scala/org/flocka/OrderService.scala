@@ -30,7 +30,7 @@ object OrderService extends App {
     }
 
     val deleteRemoveOrderRoute: Route = {
-      pathPrefix(service /  "remove " / LongNumber) { orderId ⇒
+      pathPrefix(service /  "remove" / LongNumber) { orderId ⇒
         delete{
           pathEndOrSingleSlash {
             complete("Remove Order " + orderId)
@@ -59,9 +59,9 @@ object OrderService extends App {
       }
     }
 
-    val postRemoveItemRoute: Route = {
+    val deleteRemoveItemRoute: Route = {
       pathPrefix(service /  "removeItem" / LongNumber / LongNumber) { (orderId, itemId) ⇒
-        post{
+        delete{
           pathEndOrSingleSlash {
             complete("Delete Item " + itemId + " from order " + orderId)
           }
@@ -81,7 +81,7 @@ object OrderService extends App {
 
 
     def route : Route = postCreateOrderRoute ~ deleteRemoveOrderRoute ~ getFindOrderRoute ~
-                        postAddItemRoute ~ postRemoveItemRoute ~ postCheckoutOrderRoute
+                        postAddItemRoute ~ deleteRemoveItemRoute ~ postCheckoutOrderRoute
 
     val host = "0.0.0.0"
     val port = 9000

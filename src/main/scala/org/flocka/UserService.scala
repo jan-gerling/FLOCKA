@@ -49,7 +49,7 @@ object UserService extends App {
       }
     }
 
-    val getCreditRoute: Route = {
+    val getGetCreditRoute: Route = {
       pathPrefix(service /  "credit" / LongNumber) { userId ⇒
         get {
           pathEndOrSingleSlash {
@@ -80,7 +80,7 @@ object UserService extends App {
     }
 
     def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~
-                        getCreditRoute ~ postSubtractCreditRoute ~ postAddCreditRoute
+                        getGetCreditRoute ~ postSubtractCreditRoute ~ postAddCreditRoute
 
     val host = "0.0.0.0"
     val port = 9000
