@@ -1,12 +1,16 @@
 package org.flocka.Services.User
 
 import akka.actor.ActorSystem
+import akka.pattern.ask
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import UserMsg._
+import akka.util.Timeout
+import scala.concurrent.duration._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 //TODO maybe extend HttpApp
@@ -19,11 +23,19 @@ object UserService extends App {
 
     val service = "users"
 
+
+    def createUser() : Future[Any] = {
+      implicit val timeout = Timeout(5 seconds)
+      val actorRef = system.actorOf(UserMsg.props());
+      actorRef ? CreateUser();
+    }
+
     val postCreateUserRoute: Route = {
       pathPrefix(service /  "create" ) {
         post{
           pathEndOrSingleSlash {
-            complete("Create User")
+            onSuccess(createUser()) { userId => complete("User created:")
+            }
           }
         }
       }
