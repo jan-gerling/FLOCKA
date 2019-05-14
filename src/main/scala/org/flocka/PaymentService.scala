@@ -10,57 +10,46 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 //TODO maybe extend HttpApp
-object StockService extends App {
+object PaymentService extends App {
 
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("Flocka")
     implicit val executor: ExecutionContext = system.dispatcher
     implicit val materializer: ActorMaterializer = ActorMaterializer()
 
-    val service = "stock"
+    val service = "payment"
 
-    val getGetItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "availability" / LongNumber ) { itemId ⇒
+    val postPayPaymentRoute: Route = {
+      pathPrefix(service /  "pay" / LongNumber / LongNumber ) { (userId, orderId) ⇒
+        post{
+          pathEndOrSingleSlash {
+            complete("User  " + userId + " pays for " + orderId)
+          }
+        }
+      }
+    }
+
+    val postCancelPaymentRoute: Route = {
+      pathPrefix(service /  "cancelPayment" / LongNumber / LongNumber ) { (userId, orderId) ⇒
+        post{
+          pathEndOrSingleSlash {
+            complete("User  " + userId + " cancels payment for " + orderId)
+          }
+        }
+      }
+    }
+
+    val getGetPaymentStatusRoute: Route = {
+      pathPrefix(service /  "status" / LongNumber ) { orderId ⇒
         get{
           pathEndOrSingleSlash {
-            complete("Get Item " + itemId + " Availability")
+            complete("get status of " + orderId)
           }
         }
       }
     }
 
-    val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "subtract" / LongNumber / LongNumber ) { ( itemId, number) ⇒
-        post{
-          pathEndOrSingleSlash {
-            complete("Decrease Item " + itemId + " Availability By " + number + " Units")
-          }
-        }
-      }
-    }
-
-    val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "add" / LongNumber / LongNumber) { ( itemId, number) ⇒
-        post{
-          pathEndOrSingleSlash {
-            complete("Decrease Item " + itemId + " Availability By " + number + " Units")
-          }
-        }
-      }
-    }
-
-    val postCreateItemRoute: Route = {
-      pathPrefix(service /  "item" / "create") {
-        post {
-          pathEndOrSingleSlash {
-            complete("Created Item ")
-          }
-        }
-      }
-    }
-
-    def route : Route = getGetItemAvailabilityRoute ~  postDecreaseItemAvailabilityRoute ~ postIncreaseItemAvailabilityRoute ~
-      postCreateItemRoute
+    def route : Route = postPayPaymentRoute ~ postCancelPaymentRoute ~ getGetPaymentStatusRoute
 
     val host = "0.0.0.0"
     val port = 9000
