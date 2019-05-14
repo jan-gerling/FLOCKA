@@ -57,4 +57,6 @@ object UserMsg {
   */
   final case class AddCredit(userID: Long, amount: Long) extends Cmd
   final case class CreditAdded(userId: Long, amount: Long, success: Boolean) extends Event
+
+  def props(): Props = Props(new UserActor())
 }
