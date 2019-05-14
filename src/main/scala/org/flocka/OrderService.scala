@@ -10,77 +10,78 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 //TODO maybe extend HttpApp
-object UserService extends App {
+object OrderService extends App {
 
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("Flocka")
     implicit val executor: ExecutionContext = system.dispatcher
     implicit val materializer: ActorMaterializer = ActorMaterializer()
 
-    val service = "users"
+    val service = "orders"
 
-    val postCreateUserRoute: Route = {
-      pathPrefix(service /  "create" ) {
+    val postCreateOrderRoute: Route = {
+      pathPrefix(service /  "create" / LongNumber ) { orderId ⇒
         post{
           pathEndOrSingleSlash {
-            complete("Create User")
+            complete("Create Order " + orderId)
           }
         }
       }
     }
 
-    val deleteRemoveUserRoute: Route = {
-      pathPrefix(service /  "remove" / LongNumber) { userId ⇒
+    val deleteRemoveOrderRoute: Route = {
+      pathPrefix(service /  "remove " / LongNumber) { orderId ⇒
         delete{
           pathEndOrSingleSlash {
-            complete("Remove User " + userId)
+            complete("Remove Order " + orderId)
           }
         }
       }
     }
 
-    val getFindUserRoute: Route = {
-      pathPrefix(service /  "find" / LongNumber) { userId ⇒
+    val getFindOrderRoute: Route = {
+      pathPrefix(service /  "find" / LongNumber) { orderId ⇒
         get{
           pathEndOrSingleSlash {
-            complete("Find User " + userId)
+            complete("Find Order " + orderId)
           }
         }
       }
     }
 
-    val getCreditRoute: Route = {
-      pathPrefix(service /  "credit" / LongNumber) { userId ⇒
-        get {
+    val postAddItemRoute: Route = {
+      pathPrefix(service /  "addItem" / LongNumber / LongNumber) { (orderId, itemId) ⇒
+        post{
           pathEndOrSingleSlash {
-            complete("Get Credit " + userId)
+            complete("Post Item " + itemId + " for order " + orderId)
           }
         }
       }
     }
 
-    val postSubtractCreditRoute: Route = {
-      pathPrefix(service /  "credit" / "subtract" / LongNumber / LongNumber) { (userId, amount) ⇒
-        post {
+    val postRemoveItemRoute: Route = {
+      pathPrefix(service /  "removeItem" / LongNumber / LongNumber) { (orderId, itemId) ⇒
+        post{
           pathEndOrSingleSlash {
-            complete("Subtract Credit " + amount + " from " + userId)
+            complete("Delete Item " + itemId + " from order " + orderId)
           }
         }
       }
     }
 
-    val postAddCreditRoute: Route = {
-      pathPrefix(service /  "credit" / "add" / LongNumber / LongNumber) { (userId, amount) ⇒
-        post {
+    val postCheckoutOrderRoute: Route = {
+      pathPrefix(service /  "checkout" /  LongNumber) { orderId ⇒
+        post{
           pathEndOrSingleSlash {
-            complete("Add Credit " + amount + " to " + userId)
+            complete("Post for Checking Out Order " + orderId)
           }
         }
       }
     }
 
-    def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~
-                        getCreditRoute ~ postSubtractCreditRoute ~ postAddCreditRoute
+
+    def route : Route = postCreateOrderRoute ~ deleteRemoveOrderRoute ~ getFindOrderRoute ~
+                        postAddItemRoute ~ postRemoveItemRoute ~ postCheckoutOrderRoute
 
     val host = "0.0.0.0"
     val port = 9000
