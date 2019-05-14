@@ -30,57 +30,57 @@ object UserService extends App {
     }
 
     val deleteRemoveUserRoute: Route = {
-      pathPrefix(service /  "remove" / LongNumber) { userId ⇒
+      pathPrefix(service /  "remove" / LongNumber) { id ⇒
         delete{
           pathEndOrSingleSlash {
-            complete("Remove User " + userId)
+            complete("Remove User " + id)
           }
         }
       }
     }
 
     val getFindUserRoute: Route = {
-      pathPrefix(service /  "find" / LongNumber) { userId ⇒
+      pathPrefix(service /  "find" / LongNumber) { id ⇒
         get{
           pathEndOrSingleSlash {
-            complete("Find User " + userId)
+            complete("Find User " + id)
           }
         }
       }
     }
 
-    val getGetCreditRoute: Route = {
-      pathPrefix(service /  "credit" / LongNumber) { userId ⇒
+    val getCreditRoute: Route = {
+      pathPrefix(service /  "credit" / LongNumber) { id ⇒
         get {
           pathEndOrSingleSlash {
-            complete("Get Credit " + userId)
+            complete("Get Credit " + id)
           }
         }
       }
     }
 
     val postSubtractCreditRoute: Route = {
-      pathPrefix(service /  "credit" / "subtract" / LongNumber / LongNumber) { (userId, amount) ⇒
+      pathPrefix(service /  "credit" / "subtract" / LongNumber / LongNumber) { (id, amount) ⇒
         post {
           pathEndOrSingleSlash {
-            complete("Subtract Credit " + amount + " from " + userId)
+            complete("Subtract Credit " + amount + " from " + id)
           }
         }
       }
     }
 
     val postAddCreditRoute: Route = {
-      pathPrefix(service /  "credit" / "add" / LongNumber / LongNumber) { (userId, amount) ⇒
+      pathPrefix(service /  "credit" / "add" / LongNumber / LongNumber) { (id, amount) ⇒
         post {
           pathEndOrSingleSlash {
-            complete("Add Credit " + amount + " to " + userId)
+            complete("Add Credit " + amount + " to " + id)
           }
         }
       }
     }
 
-    def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~
-                        getGetCreditRoute ~ postSubtractCreditRoute ~ postAddCreditRoute
+    def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~ getCreditRoute ~
+      postSubtractCreditRoute ~ postAddCreditRoute
 
     val host = "0.0.0.0"
     val port = 9000
