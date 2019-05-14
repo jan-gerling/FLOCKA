@@ -2,7 +2,7 @@ package org.flocka.Services.User
 
 import akka.actor._
 import akka.persistence._
-import UserMsg._
+import UserCommunication._
 import java.util.UUID.randomUUID
 
 case class UserState(userId: Long,
@@ -65,14 +65,14 @@ class UserActor() extends PersistentActor{
 
     case AddCredit(userId, amount) =>
       //how to check if successful?
-      persist(CreditAdded(userId, amount, true)) { event =>
+      persistAsync(CreditAdded(userId, amount, true)) { event =>
         updateState(event)
         sender() ! event
       }
 
     case SubtractCredit(userId, amount) =>
       //how to check if successful?
-      persist(CreditSubtracted(userId, amount, true)) { event =>
+      persistAsync(CreditSubtracted(userId, amount, true)) { event =>
         updateState(event)
         sender() ! event
       }
