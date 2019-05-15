@@ -18,17 +18,12 @@ import scala.util.{Failure, Success}
 object UserService extends App {
 
   override def main(args: Array[String]): Unit = {
-    implicit val system: ActorSystem = ActorSystem("Flocka")
+    implicit val system: ActorSystem = ActorSystem("FLOCKA")
     implicit val executor: ExecutionContext = system.dispatcher
     implicit val materializer: ActorMaterializer = ActorMaterializer()
 
     val service = "users"
     val timeoutTime = 1000 millisecond;
-
-    /*
-    ToDo: Find distributed and akka style implementation of UserRef lookup
-     */
-    var persistentUserActorRefs = scala.collection.mutable.Map[Long, ActorRef]()
 
     /*
     Handles the given command for a UserActor by sending it with the ask pattern to the correct actor.
@@ -51,12 +46,9 @@ object UserService extends App {
         case (_, Some(actorRef)) =>
           return actorRef
         case (userId, None) =>
+          system.actorSelection("../") ! Identify(userId)
           throw new IllegalArgumentException("You are asking for a not existing user with the id: " + userId)
       }
-    }
-
-    def storeUserActorRef(ref: ActorRef, userId: Long) : Unit = {
-      persistentUserActorRefs += userId -> ref
     }
 
     val postCreateUserRoute: Route = {
@@ -64,9 +56,7 @@ object UserService extends App {
         post{
           pathEndOrSingleSlash {
             onSuccess(commandHandler(CreateUser(), -1)) {
-              case UserCommunication.UserCreated(userId, actorRef) =>
-                storeUserActorRef(actorRef, userId)
-                complete("User: " + userId + " was created.")
+              case UserCommunication.UserCreated(userId) => complete("User: " + userId + " was created.")
               case _ => throw new Exception("A UserCreated event was expected, but a ")
             }
           }

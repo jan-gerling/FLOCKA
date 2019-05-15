@@ -20,7 +20,7 @@ object UserCommunication {
     POST - returns an ID
   */
   final case class CreateUser() extends Command
-  final case class UserCreated(userId: Long, actorRef: ActorRef) extends Event
+  final case class UserCreated(userId: Long) extends Event
 
   /*
   /users/remove/{user_id}
@@ -57,5 +57,7 @@ object UserCommunication {
   final case class AddCredit(userID: Long, amount: Long) extends Command
   final case class CreditAdded(userId: Long, amount: Long, success: Boolean) extends Event
 
-  def props(): Props = Props(new UserActor())
+  final case class UserActorCreated(userID: Long, actorRef: ActorRef) extends Event
+
+  def userActorProps(): Props = Props(new UserActor())
 }
