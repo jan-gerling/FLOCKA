@@ -23,7 +23,7 @@ object UserService extends App {
     implicit val materializer: ActorMaterializer = ActorMaterializer()
 
     val service = "users"
-    val timeoutTime = 250 millisecond;
+    val timeoutTime = 1000 millisecond;
 
     /*
     ToDo: Find distributed and akka style implementation of UserRef lookup
@@ -45,10 +45,12 @@ object UserService extends App {
     ToDo: Find distributed and akka style implementation of UserRef lookup
      */
     def actorHandler(userId: Long) : ActorRef = {
-      persistentUserActorRefs.get(userId) match {
-        case Some(actorRef) =>
+      (userId, persistentUserActorRefs.get(userId)) match {
+        case (-1, _) =>
+          return system.actorOf(UserCommunication.props())
+        case (_, Some(actorRef)) =>
           return actorRef
-        case None =>
+        case (userId, None) =>
           throw new IllegalArgumentException("You are asking for a not existing user with the id: " + userId)
       }
     }
@@ -118,7 +120,7 @@ object UserService extends App {
         post {
           pathEndOrSingleSlash {
             onSuccess(commandHandler(SubtractCredit(userId, amount), userId)) {
-              case UserCommunication.CreditSubtracted(userId, amount, credit) => complete("User: " + userId + " credit was subtracted by " + amount + " to "+ credit)
+              case UserCommunication.CreditSubtracted(userId, amount, succ) => complete("User: " + userId + " credit was subtracted by " + amount + " was " + succ)
               case _ => throw new Exception("A CreditSubtracted event was expected, but a ")
             }
           }
@@ -131,7 +133,7 @@ object UserService extends App {
         post {
           pathEndOrSingleSlash {
             onSuccess(commandHandler(AddCredit(userId, amount), userId)) {
-              case UserCommunication.CreditAdded(userId, amount, credit) => complete("User: " + userId + " credit was increased by " + amount + " to "+ credit)
+              case UserCommunication.CreditAdded(userId, amount, succ) => complete("User: " + userId + " credit was increased by " + amount + " was " + succ)
               case _ => throw new Exception("A CreditAdded event was expected, but a ")
             }
           }

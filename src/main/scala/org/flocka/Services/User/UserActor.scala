@@ -25,7 +25,7 @@ case class UserState(userId: Long,
 }
 
 class UserActor() extends PersistentActor{
-  override def persistenceId = randomUUID().getLeastSignificantBits.toString
+  override def persistenceId = Math.abs(randomUUID().getLeastSignificantBits).toString
 
   var state = UserState(persistenceId.toLong, false, 0)
 
