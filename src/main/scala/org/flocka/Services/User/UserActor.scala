@@ -10,7 +10,7 @@ case class UserState(userId: Long,
                      credit: Long) {
 
   def updated(event: Event): UserState = event match {
-    case UserCreated(userId) =>
+    case UserCreated(userId, actorRef) =>
       copy(userId = userId, active = true, 0)
 
     case UserDeleted(userId, true) =>
@@ -42,7 +42,7 @@ class UserActor() extends PersistentActor{
   val receiveCommand: Receive = {
     case CreateUser() =>
       //how to check if successful?
-      persist(UserCreated(persistenceId.toLong)) { event =>
+      persist(UserCreated(persistenceId.toLong, self)) { event =>
         updateState(event)
         sender() ! event
         //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html

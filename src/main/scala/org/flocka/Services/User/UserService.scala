@@ -28,7 +28,7 @@ object UserService extends App {
     /*
     ToDo: Find distributed and akka style implementation of UserRef lookup
      */
-    var persistentUserActor = scala.collection.mutable.Map[Long, ActorRef]()
+    var persistentUserActorRefs = scala.collection.mutable.Map[Long, ActorRef]()
 
     /*
     Handles the given command for a UserActor by sending it with the ask pattern to the correct actor.
@@ -45,14 +45,16 @@ object UserService extends App {
     ToDo: Find distributed and akka style implementation of UserRef lookup
      */
     def actorHandler(userId: Long) : ActorRef = {
-      (userId, persistentUserActor.get(userId)) match {
-        case (-1, _) =>
-          return system.actorOf(UserCommunication.props())
-        case (_, Some(actorRef)) =>
+      persistentUserActorRefs.get(userId) match {
+        case Some(actorRef) =>
           return actorRef
-        case (_, None) =>
-          return system.actorOf(UserCommunication.props())
+        case None =>
+          throw new IllegalArgumentException("You are asking for a not existing user with the id: " + userId)
       }
+    }
+
+    def storeUserActorRef(ref: ActorRef, userId: Long) : Unit = {
+      persistentUserActorRefs += userId -> ref
     }
 
     val postCreateUserRoute: Route = {
@@ -60,7 +62,9 @@ object UserService extends App {
         post{
           pathEndOrSingleSlash {
             onSuccess(commandHandler(CreateUser(), -1)) {
-              case UserCommunication.UserCreated(userId) => complete("User: " + userId + " was created.")
+              case UserCommunication.UserCreated(userId, actorRef) =>
+                storeUserActorRef(actorRef, userId)
+                complete("User: " + userId + " was created.")
               case _ => throw new Exception("A UserCreated event was expected, but a ")
             }
           }

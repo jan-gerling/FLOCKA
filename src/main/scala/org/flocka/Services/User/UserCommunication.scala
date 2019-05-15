@@ -1,6 +1,6 @@
 package org.flocka.Services.User
 
-import akka.actor.{ActorLogging, Props}
+import akka.actor.{ActorLogging, ActorRef, Props}
 import akka.persistence.{PersistentActor, SnapshotOffer}
 
 
@@ -20,7 +20,7 @@ object UserCommunication {
     POST - returns an ID
   */
   final case class CreateUser() extends Command
-  final case class UserCreated(userId: Long) extends Event
+  final case class UserCreated(userId: Long, actorRef: ActorRef) extends Event
 
   /*
   /users/remove/{user_id}
