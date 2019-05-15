@@ -13,7 +13,9 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8",
   "com.typesafe.akka" %% "akka-stream" % akkaVersion,
   "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
+  "com.typesafe.akka" %% "akka-persistence" % akkaVersion,
+  "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "com.thoughtworks.binding" %% "futurebinding" % "latest.release",
-  "com.typesafe.akka" %% "akka-persistence" % "2.5.4"
+
 )
