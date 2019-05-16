@@ -34,6 +34,7 @@ case class UserState(userId: Long,
 
 object UserActor{
   def props(): Props = Props(new UserActor())
+  case class InvalidUserException(userId: String) extends Exception("This user: " + userId + " is not active.")
 }
 
 class UserActor() extends PersistentActor{
@@ -49,22 +50,49 @@ class UserActor() extends PersistentActor{
     case SnapshotOffer(_, snapshot: UserState) => state = snapshot
   }
 
+  /*
+ For Debugging only.
+  */
+  override def preStart() = println("User actor: " + persistenceId + " at " + self.path + " was created.")
+  override def postStop() = println("User actor: " + persistenceId + " at " + self.path + " was shut down.")
+  override def preRestart(reason: Throwable, message: Option[Any]) = {
+    println("User actor: " + persistenceId + " at " + self.path + " is restarting.")
+    super.preRestart(reason, message)
+  }
+  override def postRestart(reason: Throwable) = {
+    println("User actor: " + persistenceId + " at " + self.path + " has restarted.")
+    super.postRestart(reason)
+  }
+  /*
+ End Debugging only.
+  */
+
   def queryHandler(query: UserCommunication.Query, userId: Long, event: UserCommunication.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
-    if(validateState())
-      sender() ! event
+    try {
+      if(validateState())
+        sender() ! event
+    } catch {
+      case userException: UserActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
+      case ex: Exception => throw ex
+    }
   }
 
   def commandHandler(command: UserCommunication.Command, userId: Long, event: UserCommunication.Event ): Unit = {
-    if(command == UserCommunication.CreateUser() || validateState()) persist(event) { event =>
-      updateState(event)
-      sender() ! event
+    try {
+      if(command == UserCommunication.CreateUser() || validateState()) persist(event) { event =>
+        updateState(event)
+        sender() ! event
 
-      context.system.eventStream.publish(event)
-      if (lastSequenceNr % snapShotInterval == 0 && lastSequenceNr != 0)
-        saveSnapshot(state)
+        context.system.eventStream.publish(event)
+        if (lastSequenceNr % snapShotInterval == 0 && lastSequenceNr != 0)
+          saveSnapshot(state)
 
-      //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
+        //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
+      }
+    } catch {
+      case userException: UserActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
+      case ex: Exception => throw ex
     }
   }
 
@@ -75,7 +103,8 @@ class UserActor() extends PersistentActor{
     if(state.active) {
       return  true
     }
-    throw new IllegalAccessError("This user: " + state.userId + " is not active.")
+
+    throw new UserActor.InvalidUserException(state.userId.toString)
   }
 
   //TODO figure out good interval value

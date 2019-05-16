@@ -5,6 +5,7 @@ import java.util.UUID.randomUUID
 import akka.pattern.ask
 import akka.pattern.pipe
 import UserCommunication._
+import akka.actor.Status.{Failure, Success}
 import akka.actor.SupervisorStrategy.{Escalate, Restart, Resume, Stop}
 import akka.util.Timeout
 
@@ -63,6 +64,15 @@ class UserActorSupervisor() extends PersistentActor {
     case SnapshotOffer(_, snapshot: SupervisorState) => state = snapshot
   }
 
+  /*
+  For Debugging only.
+   */
+  override def preStart() = println("The User Supervisor is ready.")
+  override def postStop() = println("THe User Supervisor was shut down.")
+  /*
+   End Debugging only.
+    */
+
   implicit val ec: ExecutionContext = context.dispatcher
 
   /*
@@ -97,7 +107,7 @@ class UserActorSupervisor() extends PersistentActor {
       case Some (actorRef) =>
         val actorFuture = actorRef ? command
         //ToDo: how to handle unexpected/ unwanted results?
-        //ToDo: how to handle exceptions?
+        //ToDo: how to handle exceptions? aside from supervisor strategies?
         actorFuture.filter (condition).recover {
           // When filter fails, it will have a java.util.NoSuchElementException
           case m: NoSuchElementException => 0
@@ -116,6 +126,7 @@ Similar to the command handler
       case Some(actorRef) =>
         val actorFuture = actorRef ? query
         //ToDo: how to handle unexpected/ unwanted results?
+        //ToDo: how to handle exceptions? aside from supervisor strategies?
         actorFuture.filter(condition).recover {
           // When filter fails, it will have a java.util.NoSuchElementException
           case m: NoSuchElementException => 0
@@ -179,10 +190,13 @@ Similar to the command handler
   }
 
   /*
-  ToDo: How to make supervisor strategies work? None of the exception in the child are caught
+  ToDo: Learn more about the different strategies
+  Default strategy for unmatched exceptions is escalation
   https://doc.akka.io/docs/akka/current/fault-tolerance.html#creating-a-supervisor-strategy
    */
-  override val supervisorStrategy = SupervisorStrategy.stoppingStrategy
+  override def supervisorStrategy = OneForOneStrategy() {
+    case ex: UserActor.InvalidUserException => Stop
+  }
 
   //TODO figure out good interval value for snapshots
   val snapShotInterval = 1000
