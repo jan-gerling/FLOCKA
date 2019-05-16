@@ -51,11 +51,8 @@ class UserActor() extends PersistentActor{
 
   def queryHandler(query: UserCommunication.Query, userId: Long, event: UserCommunication.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
-    if(validateState()){
+    if(validateState())
       sender() ! event
-    } else {
-      throw  new IllegalArgumentException()
-    }
   }
 
   def commandHandler(command: UserCommunication.Command, userId: Long, event: UserCommunication.Event ): Unit = {
@@ -68,8 +65,6 @@ class UserActor() extends PersistentActor{
         saveSnapshot(state)
 
       //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
-    } else {
-      throw  new IllegalArgumentException()
     }
   }
 

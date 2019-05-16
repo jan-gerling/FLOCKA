@@ -1,14 +1,18 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
+
 import akka.pattern.ask
 import akka.pattern.pipe
 import UserCommunication._
+import akka.actor.SupervisorStrategy.{Escalate, Restart, Resume, Stop}
 import akka.util.Timeout
+
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorRef, OneForOneStrategy, Props, SupervisorStrategy}
+import akka.japi.pf.DeciderBuilder
 import akka.persistence.{PersistentActor, SnapshotOffer}
 
 /*
@@ -173,6 +177,12 @@ Similar to the command handler
   def generateUserId(): Long = {
     return Math.abs(randomUUID().getLeastSignificantBits)
   }
+
+  /*
+  ToDo: How to make supervisor strategies work? None of the exception in the child are caught
+  https://doc.akka.io/docs/akka/current/fault-tolerance.html#creating-a-supervisor-strategy
+   */
+  override val supervisorStrategy = SupervisorStrategy.stoppingStrategy
 
   //TODO figure out good interval value for snapshots
   val snapShotInterval = 1000
