@@ -4,6 +4,9 @@ import akka.actor._
 import UserCommunication._
 import akka.actor.Props
 import akka.persistence.{PersistentActor, SnapshotOffer}
+import org.flocka.Services.User.UserActor.UserActorTimeoutException
+
+import scala.concurrent.duration._
 
 /*
 Hold the current state of the user here.
@@ -35,11 +38,14 @@ case class UserState(userId: Long,
 object UserActor{
   def props(): Props = Props(new UserActor())
   case class InvalidUserException(userId: String) extends Exception("This user: " + userId + " is not active.")
+  case class UserActorTimeoutException(userId: String) extends Exception(userId)
 }
 
 class UserActor() extends PersistentActor{
   override def persistenceId = self.path.name
 
+  //ToDo: what is a good timeout time for a useractor?
+  context.setReceiveTimeout(150 seconds)
   var state = UserState(persistenceId.toLong, false, 0)
 
   def updateState(event: Event): Unit =
@@ -53,7 +59,7 @@ class UserActor() extends PersistentActor{
   /*
  For Debugging only.
   */
-  override def preStart() = println("User actor: " + persistenceId + " at " + self.path + " was created.")
+  override def preStart() = println("User actor: " + persistenceId + " at " + self.path + " was started.")
   override def postStop() = println("User actor: " + persistenceId + " at " + self.path + " was shut down.")
   override def preRestart(reason: Throwable, message: Option[Any]) = {
     println("User actor: " + persistenceId + " at " + self.path + " is restarting.")
@@ -127,5 +133,8 @@ class UserActor() extends PersistentActor{
 
     case command @ SubtractCredit(userId, amount) =>
       commandHandler(command, userId, CreditSubtracted(userId, amount, true))
+
+    case ReceiveTimeout =>
+      throw new UserActorTimeoutException(persistenceId)
   }
 }

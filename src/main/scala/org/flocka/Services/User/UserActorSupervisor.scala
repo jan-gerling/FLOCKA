@@ -5,7 +5,6 @@ import java.util.UUID.randomUUID
 import akka.pattern.ask
 import akka.pattern.pipe
 import UserCommunication._
-import akka.actor.Status.{Failure, Success}
 import akka.actor.SupervisorStrategy.{Escalate, Restart, Resume, Stop}
 import akka.util.Timeout
 
@@ -13,8 +12,8 @@ import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor.{ActorRef, OneForOneStrategy, Props, SupervisorStrategy}
-import akka.japi.pf.DeciderBuilder
 import akka.persistence.{PersistentActor, SnapshotOffer}
+import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
 /*
 !Currently this is not used!
@@ -196,6 +195,7 @@ Similar to the command handler
    */
   override def supervisorStrategy = OneForOneStrategy() {
     case ex: UserActor.InvalidUserException => Stop
+    case ex: UserActorTimeoutException => knownUserActor -= ex.getMessage.toLong; Stop
   }
 
   //TODO figure out good interval value for snapshots
