@@ -1,24 +1,25 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
-import akka.pattern.{ask}
+import akka.pattern.ask
+import akka.pattern.pipe
 import UserCommunication._
 import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
-import akka.pattern.pipe
 import akka.actor.{ActorRef, Props}
+import akka.http.scaladsl.server.Directives.{complete, onSuccess}
 import akka.persistence.{PersistentActor, SnapshotOffer}
 
 
-case class SupervisorState(persistentUserActorRefs: scala.collection.mutable.Map[Long, ActorRef]) {
+case class SupervisorState(persistentUserActors: mutable.ListBuffer[Long]) {
   def updated(event: Event): SupervisorState = event match {
-    case UserActorCreated(userID, actorRef) =>
-      copy(persistentUserActorRefs += userID -> actorRef)
+    case UserActorCreated(userID) =>
+      copy(persistentUserActors += userID)
   }
 
-  def size: Int = persistentUserActorRefs.size
+  def size: Int = persistentUserActors.size
 }
 
 object UserActorSupervisor{
@@ -29,7 +30,7 @@ class UserActorSupervisor() extends PersistentActor {
 
   override def persistenceId = self.path.name
 
-  var state = SupervisorState(mutable.Map.empty[Long, ActorRef])
+  var state = SupervisorState(mutable.ListBuffer())
 
   def updateState(event: Event): Unit =
     state = state.updated(event)
@@ -44,12 +45,13 @@ class UserActorSupervisor() extends PersistentActor {
   val service = "user-supervisor"
   val timeoutTime = 1000 millisecond;
   implicit val timeout = Timeout(timeoutTime)
+  var knownUserActor = mutable.Map.empty[Long, ActorRef]
 
   /*
   Use pipe pattern to forward the actual command to the correct actor and then relay it to the asking actor.
   */
   def commandHandler(command: UserCommunication.Command, userId: Long, sender: ActorRef): Future[Any] = {
-    (actorHandler(userId) ? command) pipeTo (sender)
+    (actorHandler(userId) ? command) pipeTo sender
   }
 
   /*
@@ -57,7 +59,7 @@ class UserActorSupervisor() extends PersistentActor {
   ToDo: Find distributed and akka style implementation of UserRef lookup
    */
   def actorHandler(userId: Long): ActorRef = {
-    state.persistentUserActorRefs.get(userId) match {
+    knownUserActor.get(userId) match {
       case Some(actorRef) =>
         return actorRef
       case None =>
@@ -69,15 +71,13 @@ class UserActorSupervisor() extends PersistentActor {
   Get the child actor of this supervisor with the child id
   */
   def getChild(userId: String): ActorRef = {
-    val actorRef = context.child(userId).getOrElse {
-      throw new IllegalArgumentException("Cannot find user actor for user id: " + userId)
+    return context.child(userId).getOrElse {
+      return createUser(userId)
     }
-
-    return actorRef
   }
 
-  def createUser(userId: Long): ActorRef ={
-    return context.actorOf(UserActor.props(), userId.toString)
+  def createUser(userId: String): ActorRef ={
+    return context.actorOf(UserActor.props(), userId)
   }
 
   def generateUserId(): Long = {
@@ -87,21 +87,24 @@ class UserActorSupervisor() extends PersistentActor {
   //TODO figure out good interval value
   val snapShotInterval = 1000
   val receiveCommand: Receive = {
-    case command @ CreateUser() =>
+    case CreateUser() =>
 
       val userId: Long = generateUserId()
-      val actorRef = createUser(userId)
-      persist(UserActorCreated(userId, actorRef)) { event =>
+      val actorRef = createUser(userId.toString)
+      persist(UserActorCreated(userId)) { event =>
         updateState(event)
-        println("Supervisor " + persistenceId + " has size: " + state.size)
-        (actorRef ? command) pipeTo(sender())
+        commandHandler(CreateUser(), userId, sender())
       }
-
-    case command @ DeleteUser(userId) => commandHandler(command, userId, sender())
-    case command @ FindUser(userId) => commandHandler(command, userId, sender())
-    case command @ GetCredit(userId) => commandHandler(command, userId, sender())
-    case command @ AddCredit(userId, _) => commandHandler(command, userId, sender())
-    case command @ SubtractCredit(userId, _) => commandHandler(command, userId, sender())
+    case DeleteUser(userId) =>
+      commandHandler(DeleteUser(userId), userId, sender())
+    case FindUser(userId) =>
+      commandHandler(FindUser(userId), userId, sender())
+    case GetCredit(userId) =>
+      commandHandler(GetCredit(userId), userId, sender())
+    case AddCredit(userId, amount) =>
+      commandHandler(AddCredit(userId, amount), userId, sender())
+    case SubtractCredit(userId, amount) =>
+      commandHandler(SubtractCredit(userId, amount), userId, sender())
 
     case command @ _  => throw new IllegalArgumentException(command.toString)
   }

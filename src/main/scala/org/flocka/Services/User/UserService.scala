@@ -41,9 +41,9 @@ object UserService extends App {
       pathPrefix(service /  "create" ) {
         post{
           pathEndOrSingleSlash {
-            onSuccess(commandHandler(CreateUser(), -1)) {
-              case UserCommunication.UserCreated(userId) => complete("User: " + userId + " was created.")
-              case _ => throw new Exception("A UserCreated event was expected, but a ")
+            onComplete(commandHandler(CreateUser(), -1)) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
@@ -54,11 +54,9 @@ object UserService extends App {
       pathPrefix(service /  "remove" / LongNumber) { userId ⇒
         delete{
           pathEndOrSingleSlash {
-            pathEndOrSingleSlash {
-              onSuccess(commandHandler(DeleteUser(userId), userId)) {
-                case UserCommunication.UserDeleted(userId, status) => complete("User: " + userId + " was deleted: " + status)
-                case _ => throw new Exception("A UserDeleted event was expected, but a ")
-              }
+            onComplete(commandHandler(DeleteUser(userId), userId)) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
@@ -69,9 +67,9 @@ object UserService extends App {
       pathPrefix(service /  "find" / LongNumber) { userId ⇒
         get{
           pathEndOrSingleSlash {
-            onSuccess(commandHandler(FindUser(userId), userId)) {
-              case UserCommunication.UserFound(userId, data) => complete("User: " + userId + " has: " + data.toString)
-              case _ => throw new Exception("A UserFound event was expected, but a ")
+            onComplete(commandHandler(FindUser(userId), userId)) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
@@ -82,9 +80,9 @@ object UserService extends App {
       pathPrefix(service /  "credit" / LongNumber) { userId ⇒
         get {
           pathEndOrSingleSlash {
-            onSuccess(commandHandler(GetCredit(userId), userId)) {
-              case UserCommunication.CreditGot(userId, credit) => complete("User: " + userId + " has: " + credit)
-              case _ => throw new Exception("A CreditGot event was expected, but a ")
+            onComplete(commandHandler(GetCredit(userId), userId)) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
@@ -95,9 +93,9 @@ object UserService extends App {
       pathPrefix(service /  "credit" / "subtract" / LongNumber / LongNumber) { (userId, amount) ⇒
         post {
           pathEndOrSingleSlash {
-            onSuccess(commandHandler(SubtractCredit(userId, amount), userId)) {
-              case UserCommunication.CreditSubtracted(userId, amount, succ) => complete("User: " + userId + " credit was subtracted by " + amount + " was " + succ)
-              case _ => throw new Exception("A CreditSubtracted event was expected, but a ")
+            onComplete(commandHandler(SubtractCredit(userId, amount), userId)) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
@@ -108,9 +106,9 @@ object UserService extends App {
       pathPrefix(service /  "credit" / "add" / LongNumber / LongNumber) { (userId, amount) ⇒
         post {
           pathEndOrSingleSlash {
-            onSuccess(commandHandler(AddCredit(userId, amount), userId)) {
-              case UserCommunication.CreditAdded(userId, amount, succ) => complete("User: " + userId + " credit was increased by " + amount + " was " + succ)
-              case _ => throw new Exception("A CreditAdded event was expected, but a ")
+            onComplete(commandHandler(AddCredit(userId, amount), userId)) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
