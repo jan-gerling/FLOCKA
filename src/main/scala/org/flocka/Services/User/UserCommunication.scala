@@ -13,6 +13,7 @@ Define all messages foe very single command implemented by user
 object UserCommunication {
   sealed trait Command
   sealed trait Event
+  sealed trait Query
 
   /*
   /users/create/
@@ -32,14 +33,14 @@ object UserCommunication {
   /users/find/{user_id}
     GET - returns a set of users with their details (id, and credit)
   */
-  final case class FindUser(userID: Long) extends Command
+  final case class FindUser(userID: Long) extends Query
   final case class UserFound(userId: Long, userDetails: Set[Long]) extends Event
 
   /*
   /users/credit/{user_id}
     GET - returns the current credit of a user
   */
-  final case class GetCredit(userID: Long) extends Command
+  final case class GetCredit(userID: Long) extends Query
   final case class CreditGot(userId: Long, credit: Long) extends Event
 
   /*

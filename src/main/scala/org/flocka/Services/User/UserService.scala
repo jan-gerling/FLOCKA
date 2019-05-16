@@ -24,7 +24,7 @@ object UserService extends App {
     implicit val materializer: ActorMaterializer = ActorMaterializer()
 
     val service = "users"
-    val timeoutTime = 1000 millisecond;
+    val timeoutTime = 500 millisecond;
     val supervisorRef: ActorRef = system.actorOf(UserActorSupervisor.props(), 1.toString)
 
     /*
@@ -33,6 +33,14 @@ object UserService extends App {
     Giving userId -1 is no userId
     */
     def commandHandler(command: UserCommunication.Command, userId: Long): Future[Any] = {
+      implicit val timeout = Timeout(timeoutTime)
+      supervisorRef ? command
+    }
+
+    /*
+    similar to the command handler
+    */
+    def queryHandler(command: UserCommunication.Query, userId: Long): Future[Any] = {
       implicit val timeout = Timeout(timeoutTime)
       supervisorRef ? command
     }
@@ -67,7 +75,7 @@ object UserService extends App {
       pathPrefix(service /  "find" / LongNumber) { userId ⇒
         get{
           pathEndOrSingleSlash {
-            onComplete(commandHandler(FindUser(userId), userId)) {
+            onComplete(queryHandler(FindUser(userId), userId)) {
               case Success(value) => complete(value.toString)
               case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
@@ -80,7 +88,7 @@ object UserService extends App {
       pathPrefix(service /  "credit" / LongNumber) { userId ⇒
         get {
           pathEndOrSingleSlash {
-            onComplete(commandHandler(GetCredit(userId), userId)) {
+            onComplete(queryHandler(GetCredit(userId), userId)) {
               case Success(value) => complete(value.toString)
               case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }

@@ -23,9 +23,14 @@ case class SupervisorState(persistentUserActors: mutable.ListBuffer[Long]) {
       copy(persistentUserActors += userID)
     case UserActorDeleted(userID) =>
       copy(persistentUserActors -= userID)
+    case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActorSupervisor.")
   }
 
   def size: Int = persistentUserActors.size
+
+  def knows(userId: Long): Boolean = {
+    return false
+  }
 }
 
 /*
@@ -64,7 +69,7 @@ class UserActorSupervisor() extends PersistentActor {
   /*
   ToDo: find a good timeout time
    */
-  val timeoutTime = 500 millisecond;
+  val timeoutTime = 400 millisecond;
   implicit val timeout = Timeout(timeoutTime)
 
   /*
@@ -80,10 +85,32 @@ class UserActorSupervisor() extends PersistentActor {
   condition: all conditions the response has to fulfill in order to be passed
   createNew: Do you expect to create a new UserActor, only to be set true from CreateUser Command
   */
-  def commandHandler(command: UserCommunication.Command, userId: Long, recipientTo: ActorRef, condition: Any => Boolean, createNew: Boolean = false): Future[Any] = {
-    actorHandler(userId, createNew) match {
-      case Some(actorRef) =>
+  def commandHandler(command: UserCommunication.Command,
+                      userId: Long,
+                      recipientTo: ActorRef,
+                      condition: Any => Boolean): Future[Any] = {
+    actorHandler (userId) match {
+      case Some (actorRef) =>
         val actorFuture = actorRef ? command
+        //ToDo: how to handle unexpected/ unwanted results?
+        //ToDo: how to handle exceptions?
+        actorFuture.filter (condition).recover {
+          // When filter fails, it will have a java.util.NoSuchElementException
+          case m: NoSuchElementException => 0
+        }
+        actorFuture pipeTo recipientTo
+      case None =>
+        throw new IllegalArgumentException ("Can't find an existing user for user id: " + userId)
+    }
+  }
+
+  /*
+Similar to the command handler
+*/
+  def queryHandler(query: UserCommunication.Query, userId: Long, recipientTo: ActorRef, condition: Any => Boolean): Future[Any] = {
+    actorHandler(userId) match {
+      case Some(actorRef) =>
+        val actorFuture = actorRef ? query
         //ToDo: how to handle unexpected/ unwanted results?
         actorFuture.filter(condition).recover {
           // When filter fails, it will have a java.util.NoSuchElementException
@@ -91,8 +118,7 @@ class UserActorSupervisor() extends PersistentActor {
         }
         actorFuture pipeTo recipientTo
       case None =>
-        if (createNew == false) {throw new IllegalArgumentException("Can't find an existing user for user id: " + userId)}
-        else {throw new IllegalArgumentException("Can't create a new user for user id: " + userId)}
+        throw new IllegalArgumentException("Can't find an existing user for user id: " + userId)
     }
   }
 
@@ -101,12 +127,10 @@ class UserActorSupervisor() extends PersistentActor {
   Create new specifies whether this user is supposed to be created newly.
   ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
   */
-  def actorHandler(userId: Long, createNew: Boolean): Option[ActorRef] = {
-    (createNew, findActor(userId)) match{
-      case (false, Some(actorRef: ActorRef)) => return Some(actorRef)
-      case (true, Some(_)) => throw  new IllegalAccessException("You want to create a new user with id that already exists: " + userId)
-      case (false, None) => return None
-      case (true, None) => Some(createUser(userId.toString))
+  def actorHandler(userId: Long): Option[ActorRef] = {
+    findActor(userId) match{
+      case Some(actorRef: ActorRef) => return Some(actorRef)
+      case None => Some(createUser(userId.toString))
     }
   }
 
@@ -118,11 +142,9 @@ class UserActorSupervisor() extends PersistentActor {
       case Some(actorRef) =>
         return Some(actorRef)
       case None =>
-        if(state.persistentUserActors.contains(userId)){
-          return Some(recoverUserActor(userId.toString))
+        return Some(context.child(userId.toString)).getOrElse{
+          return None
         }
-        else
-          return Some(createUser(userId.toString))
     }
   }
 
@@ -131,14 +153,16 @@ class UserActorSupervisor() extends PersistentActor {
   NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
    */
   def createUser(userId: String): ActorRef ={
-    return context.actorOf(UserActor.props(), userId)
+    val userActor = context.actorOf(UserActor.props(), userId)
+    knownUserActor += userId.toLong -> userActor
+    return userActor
   }
 
   /*
  Recover a new actor with the given userId.
  NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
   */
-  def recoverUserActor(userId: String): ActorRef ={
+  def recoverUserActorRef(userId: String): ActorRef ={
     return context.actorOf(UserActor.props(), userId)
   }
 
@@ -166,8 +190,7 @@ class UserActorSupervisor() extends PersistentActor {
         _ match {
           case UserCommunication.UserCreated(resultId) => userId == resultId
           case _ => false
-        },
-        true
+        }
       )
     case command @ DeleteUser(userId) =>
       commandHandler(
@@ -178,18 +201,18 @@ class UserActorSupervisor() extends PersistentActor {
           case UserCommunication.UserDeleted(resultId, status) => userId == resultId && status
           case _ => false
         })
-    case command @ FindUser(userId) =>
-      commandHandler(
-        command,
+    case query @ FindUser(userId) =>
+      queryHandler(
+        query,
         userId,
         sender(),
         _ match {
           case UserCommunication.UserFound(resultId, _) => userId == resultId
           case _ => false
         })
-    case command @ GetCredit(userId) =>
-      commandHandler(
-        command,
+    case query @ GetCredit(userId) =>
+      queryHandler(
+        query,
         userId,
         sender(),
         _ match {
