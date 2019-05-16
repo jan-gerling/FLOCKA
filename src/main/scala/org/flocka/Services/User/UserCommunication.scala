@@ -1,7 +1,6 @@
 package org.flocka.Services.User
 
-import akka.actor.{ActorLogging, ActorRef, Props}
-import akka.persistence.{PersistentActor, SnapshotOffer}
+import akka.actor.{ActorRef}
 
 
 /*
@@ -58,6 +57,4 @@ object UserCommunication {
   final case class CreditAdded(userId: Long, amount: Long, success: Boolean) extends Event
 
   final case class UserActorCreated(userID: Long, actorRef: ActorRef) extends Event
-
-  def userActorProps(): Props = Props(new UserActor())
 }

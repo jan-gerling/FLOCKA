@@ -1,9 +1,10 @@
 package org.flocka.Services.User
 
 import akka.actor._
-import akka.persistence._
 import UserCommunication._
-import java.util.UUID.randomUUID
+import akka.actor.{Props}
+import akka.persistence.{PersistentActor, SnapshotOffer}
+
 
 case class UserState(userId: Long,
                      active: Boolean,
@@ -22,6 +23,10 @@ case class UserState(userId: Long,
     case CreditSubtracted(userId, amount, true) =>
       copy(userId = userId, active = active, credit = credit - amount)
   }
+}
+
+object UserActor{
+  def props(): Props = Props(new UserActor())
 }
 
 class UserActor() extends PersistentActor{

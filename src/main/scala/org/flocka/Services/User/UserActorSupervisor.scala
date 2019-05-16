@@ -1,8 +1,6 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
-import akka.actor._
-import akka.persistence._
 import akka.pattern.{ask}
 import UserCommunication._
 import akka.util.Timeout
@@ -10,20 +8,26 @@ import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import akka.pattern.pipe
+import akka.actor.{ActorRef, Props}
+import akka.persistence.{PersistentActor, SnapshotOffer}
 
 
 case class SupervisorState(persistentUserActorRefs: scala.collection.mutable.Map[Long, ActorRef]) {
-
   def updated(event: Event): SupervisorState = event match {
-
+    case UserActorCreated(userID, actorRef) =>
+      copy(persistentUserActorRefs += userID -> actorRef)
   }
 
   def size: Int = persistentUserActorRefs.size
 }
 
-class UserActorSupervisor(id: String) extends PersistentActor {
+object UserActorSupervisor{
+  def props(): Props = Props(new UserActorSupervisor())
+}
 
-  override def persistenceId = id
+class UserActorSupervisor() extends PersistentActor {
+
+  override def persistenceId = self.path.name
 
   var state = SupervisorState(mutable.Map.empty[Long, ActorRef])
 
@@ -45,7 +49,6 @@ class UserActorSupervisor(id: String) extends PersistentActor {
   Use pipe pattern to forward the actual command to the correct actor and then relay it to the asking actor.
   */
   def commandHandler(command: UserCommunication.Command, userId: Long, sender: ActorRef): Future[Any] = {
-
     (actorHandler(userId) ? command) pipeTo (sender)
   }
 
@@ -70,12 +73,11 @@ class UserActorSupervisor(id: String) extends PersistentActor {
       throw new IllegalArgumentException("Cannot find user actor for user id: " + userId)
     }
 
-
     return actorRef
   }
 
   def createUser(userId: Long): ActorRef ={
-    return context.actorOf(UserCommunication.userActorProps(), userId.toString)
+    return context.actorOf(UserActor.props(), userId.toString)
   }
 
   def generateUserId(): Long = {
@@ -91,6 +93,7 @@ class UserActorSupervisor(id: String) extends PersistentActor {
       val actorRef = createUser(userId)
       persist(UserActorCreated(userId, actorRef)) { event =>
         updateState(event)
+        println("Supervisor " + persistenceId + " has size: " + state.size)
         (actorRef ? command) pipeTo(sender())
       }
 

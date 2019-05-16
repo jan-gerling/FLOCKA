@@ -5,10 +5,11 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import akka.pattern.{ask}
 import UserCommunication._
-import akka.pattern.ask
-import akka.actor.Props
 import akka.util.Timeout
+import akka.actor.{ActorRef, Props}
+
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -24,6 +25,7 @@ object UserService extends App {
 
     val service = "users"
     val timeoutTime = 1000 millisecond;
+    val supervisorRef: ActorRef = system.actorOf(UserActorSupervisor.props(), 1.toString)
 
     /*
     Handles the given command for a UserActor by sending it with the ask pattern to the correct actor.
@@ -32,23 +34,7 @@ object UserService extends App {
     */
     def commandHandler(command: UserCommunication.Command, userId: Long): Future[Any] = {
       implicit val timeout = Timeout(timeoutTime)
-      actorHandler(userId) ? command
-    }
-
-    /*
-    Hides the actor ref lookup from all the other functions, always use this as an endpoint to get actor refs by userId
-    ToDo: Find distributed and akka style implementation of UserRef lookup
-     */
-    def actorHandler(userId: Long) : ActorRef = {
-      (userId, persistentUserActorRefs.get(userId)) match {
-        case (-1, _) =>
-          return system.actorOf(UserCommunication.props())
-        case (_, Some(actorRef)) =>
-          return actorRef
-        case (userId, None) =>
-          system.actorSelection("../") ! Identify(userId)
-          throw new IllegalArgumentException("You are asking for a not existing user with the id: " + userId)
-      }
+      supervisorRef ? command
     }
 
     val postCreateUserRoute: Route = {
