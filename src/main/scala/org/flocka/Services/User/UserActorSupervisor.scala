@@ -1,17 +1,15 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
-
 import akka.pattern.ask
 import akka.pattern.pipe
 import UserCommunication._
-import akka.actor.SupervisorStrategy.{Escalate, Restart, Resume, Stop}
+import akka.actor.SupervisorStrategy.{Stop}
 import akka.util.Timeout
-
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
-import akka.actor.{ActorRef, OneForOneStrategy, Props, SupervisorStrategy}
+import akka.actor.{ActorRef, OneForOneStrategy, Props}
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
@@ -47,6 +45,11 @@ object UserActorSupervisor{
   For more details on props look here: https://doc.akka.io/docs/akka/2.5.5/scala/actors.html
    */
   def props(): Props = Props(new UserActorSupervisor())
+
+  final val rebuildSupervisorIdMask: Long = 0xFF00000000000000L
+  final val supervisorIdMask: Long = 0x00000000000000FFL
+  final val randomIdMask: Long = 0x00FFFFFFFFFFFFFFL
+  final val randomIdBitLength = 56;
 }
 
 class UserActorSupervisor() extends PersistentActor {
@@ -183,9 +186,19 @@ Similar to the command handler
   /*
   Generate a userId for a user, this userId is also used to address the correct actor via the actor path.
   DO NOT ALTER A userID after it was assigned.
+  The user id consists of two components:
+  1. supervisor part (first 8 bit) - equivalent to the supervisor id, used to identify a supervisor for a specific userid
+  2. randomUserId part (last 56 bit) - unique for each user actor of this supervisor
    */
   def generateUserId(): Long = {
-    return Math.abs(randomUUID().getLeastSignificantBits)
+    val randomIdPart: Long = applyMask(Math.abs(randomUUID().getLeastSignificantBits), UserActorSupervisor.randomIdMask)
+    val nameIdPart: Long = applyMask(persistenceId.toLong, UserActorSupervisor.supervisorIdMask)
+    val adressableId: Long = (nameIdPart << 56) + randomIdPart
+    return adressableId
+  }
+
+  def applyMask(input: Long, mask: Long): Long = {
+    return input & mask
   }
 
   /*
