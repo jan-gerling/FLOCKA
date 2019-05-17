@@ -19,16 +19,16 @@ This state saves all existing user actors related to this supervisor.
 Use this state to validate the existence of user actors.
 ToDO: figure out if this is necessary or could be done with some build in functionality
  */
-case class SupervisorState(persistentUserActors: mutable.ListBuffer[Long]) {
+case class SupervisorState(givenUserIds: mutable.ListBuffer[Long]) {
   def updated(event: Event): SupervisorState = event match {
     case UserActorCreated(userID) =>
-      copy(persistentUserActors += userID)
+      copy(givenUserIds += userID)
     case UserActorDeleted(userID) =>
-      copy(persistentUserActors -= userID)
+      copy(givenUserIds -= userID)
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActorSupervisor.")
   }
 
-  def size: Int = persistentUserActors.size
+  def size: Int = givenUserIds.size
 
   def knows(userId: Long): Boolean = {
     return false

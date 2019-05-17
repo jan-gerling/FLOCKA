@@ -4,6 +4,7 @@ import akka.actor._
 import UserCommunication._
 import akka.actor.Props
 import akka.persistence.{PersistentActor, SnapshotOffer}
+import com.sun.javaws.exceptions.InvalidArgumentException
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
 import scala.concurrent.duration._
@@ -74,7 +75,7 @@ class UserActor() extends PersistentActor{
   def queryHandler(query: UserCommunication.Query, userId: Long, event: UserCommunication.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
     try {
-      if(validateState())
+      if(validateState(query))
         sender() ! event
     } catch {
       case userException: UserActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
@@ -84,7 +85,7 @@ class UserActor() extends PersistentActor{
 
   def commandHandler(command: UserCommunication.Command, userId: Long, event: UserCommunication.Event ): Unit = {
     try {
-      if(command == UserCommunication.CreateUser() || validateState()) persist(event) { event =>
+      if(validateState(command)) persist(event) { event =>
         updateState(event)
         sender() ! event
 
@@ -94,6 +95,7 @@ class UserActor() extends PersistentActor{
 
         //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
       }
+
     } catch {
       case userException: UserActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
       case ex: Exception => throw ex
@@ -103,7 +105,19 @@ class UserActor() extends PersistentActor{
   /*
   Validate if the user actor state allows any interaction at the current point
    */
-  def validateState(): Boolean ={
+  def validateState(command: UserCommunication.Command): Boolean ={
+    if (command == UserCommunication.CreateUser() && state.active == false) {
+      return true
+    } else if(state.active) {
+      return  true
+    } else if (command != UserCommunication.CreateUser() && state.active == false) {
+      throw new UserActor.InvalidUserException(state.userId.toString)
+    }
+
+    throw new IllegalArgumentException(command.toString)
+  }
+
+  def validateState(query: UserCommunication.Query): Boolean ={
     if(state.active) {
       return  true
     }
