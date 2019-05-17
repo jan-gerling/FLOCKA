@@ -14,28 +14,6 @@ import akka.persistence.{PersistentActor, SnapshotOffer}
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
 /*
-!Currently this is not used!
-This state saves all existing user actors related to this supervisor.
-Use this state to validate the existence of user actors.
-ToDO: figure out if this is necessary or could be done with some build in functionality
- */
-case class SupervisorState(givenUserIds: mutable.ListBuffer[Long]) {
-  def updated(event: Event): SupervisorState = event match {
-    case UserActorCreated(userID) =>
-      copy(givenUserIds += userID)
-    case UserActorDeleted(userID) =>
-      copy(givenUserIds -= userID)
-    case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActorSupervisor.")
-  }
-
-  def size: Int = givenUserIds.size
-
-  def knows(userId: Long): Boolean = {
-    return false
-  }
-}
-
-/*
 This Object stores the props to create a UserActorSupervisor.
  */
 object UserActorSupervisor{
@@ -62,14 +40,8 @@ class UserActorSupervisor() extends PersistentActor {
 
   override def persistenceId = self.path.name
 
-  var state = SupervisorState(mutable.ListBuffer())
-
-  def updateState(event: Event): Unit =
-    state = state.updated(event)
-
   val receiveRecover: Receive = {
-    case event: Event => updateState(event)
-    case SnapshotOffer(_, snapshot: SupervisorState) => state = snapshot
+    case _ =>
   }
 
   implicit val ec: ExecutionContext = context.dispatcher

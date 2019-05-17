@@ -56,10 +56,4 @@ object UserCommunication {
   */
   final case class AddCredit(userID: Long, amount: Long) extends Command
   final case class CreditAdded(userId: Long, amount: Long, success: Boolean) extends Event
-
-  /*
-  This might be used in the UserActorSupervisor to monitor the creation of new user actors, currently this is not put in action though!
-   */
-  final case class UserActorCreated(userID: Long) extends Event
-  final case class UserActorDeleted(userID: Long) extends Event
 }
