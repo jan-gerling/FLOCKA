@@ -50,7 +50,8 @@ object UserActorSupervisor{
   final val supervisorIdMask: Long = 0x00000000000000FFL
   final val randomIdMask: Long = 0x00FFFFFFFFFFFFFFL
   final val randomIdBitLength = 56
-  final val supervisorIdRange: Int = Math.pow(2, 64 - randomIdBitLength).toInt
+  //-1 to avoid negative longs
+  final val supervisorIdRange: Int = Math.pow(2, 64 - randomIdBitLength - 1).toInt
 
   final def extractSupervisorId(userId: Long): Long ={
     return (userId & rebuildSupervisorIdMask) >> randomIdBitLength

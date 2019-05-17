@@ -58,7 +58,6 @@ class UserActor() extends PersistentActor{
 
   /*
  For Debugging only.
-  */
   override def preStart() = println("User actor: " + persistenceId + " at " + self.path + " was started.")
   override def postStop() = println("User actor: " + persistenceId + " at " + self.path + " was shut down.")
   override def preRestart(reason: Throwable, message: Option[Any]) = {
@@ -69,7 +68,6 @@ class UserActor() extends PersistentActor{
     println("User actor: " + persistenceId + " at " + self.path + " has restarted.")
     super.postRestart(reason)
   }
-  /*
  End Debugging only.
   */
 
