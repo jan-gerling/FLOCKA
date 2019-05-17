@@ -49,7 +49,12 @@ object UserActorSupervisor{
   final val rebuildSupervisorIdMask: Long = 0xFF00000000000000L
   final val supervisorIdMask: Long = 0x00000000000000FFL
   final val randomIdMask: Long = 0x00FFFFFFFFFFFFFFL
-  final val randomIdBitLength = 56;
+  final val randomIdBitLength = 56
+  final val supervisorIdRange: Int = Math.pow(2, 64 - randomIdBitLength).toInt
+
+  final def extractSupervisorId(userId: Long): Long ={
+    return (userId & rebuildSupervisorIdMask) >> randomIdBitLength
+  }
 }
 
 class UserActorSupervisor() extends PersistentActor {
@@ -65,15 +70,6 @@ class UserActorSupervisor() extends PersistentActor {
     case event: Event => updateState(event)
     case SnapshotOffer(_, snapshot: SupervisorState) => state = snapshot
   }
-
-  /*
-  For Debugging only.
-   */
-  override def preStart() = println("The User Supervisor is ready.")
-  override def postStop() = println("THe User Supervisor was shut down.")
-  /*
-   End Debugging only.
-    */
 
   implicit val ec: ExecutionContext = context.dispatcher
 
@@ -99,7 +95,6 @@ class UserActorSupervisor() extends PersistentActor {
   userId: userId of the addressed user, implicates the user actor
   recipientTo: The asking actor, often the user service, to this actor the response from the user actor is send to+
   condition: all conditions the response has to fulfill in order to be passed
-  createNew: Do you expect to create a new UserActor, only to be set true from CreateUser Command
   */
   def commandHandler(command: UserCommunication.Command,
                       userId: Long,
@@ -141,7 +136,6 @@ Similar to the command handler
 
   /*
   Hides the actor ref lookup from all the other functions, always use this as an endpoint to get actor refs by userId.
-  Create new specifies whether this user is supposed to be created newly.
   ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
   */
   def actorHandler(userId: Long): Option[ActorRef] = {
@@ -180,7 +174,7 @@ Similar to the command handler
  NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
   */
   def recoverUserActorRef(userId: String): ActorRef ={
-    return context.actorOf(UserActor.props(), userId)
+    return createUser(userId)
   }
 
   /*
@@ -191,14 +185,10 @@ Similar to the command handler
   2. randomUserId part (last 56 bit) - unique for each user actor of this supervisor
    */
   def generateUserId(): Long = {
-    val randomIdPart: Long = applyMask(Math.abs(randomUUID().getLeastSignificantBits), UserActorSupervisor.randomIdMask)
-    val nameIdPart: Long = applyMask(persistenceId.toLong, UserActorSupervisor.supervisorIdMask)
+    val randomIdPart: Long = Math.abs(randomUUID().getLeastSignificantBits) & UserActorSupervisor.randomIdMask
+    val nameIdPart: Long = persistenceId.toLong & UserActorSupervisor.supervisorIdMask
     val adressableId: Long = (nameIdPart << 56) + randomIdPart
     return adressableId
-  }
-
-  def applyMask(input: Long, mask: Long): Long = {
-    return input & mask
   }
 
   /*

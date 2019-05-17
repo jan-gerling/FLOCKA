@@ -5,12 +5,12 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
-import akka.pattern.{ask}
+import akka.pattern.ask
 import UserCommunication._
 import akka.util.Timeout
 import akka.actor.{ActorRef, Props}
 
-
+import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -25,24 +25,72 @@ object UserService extends App {
 
     val service = "users"
     val timeoutTime = 500 millisecond;
-    val supervisorRef: ActorRef = system.actorOf(UserActorSupervisor.props(), 1.toString)
+    val randomGenerator  = scala.util.Random
+    implicit val timeout = Timeout(timeoutTime)
+
+    /*
+    Stores all the supervisor currently known to the service to increase actorRef lookups.
+    */
+    var knownSupervisorActor = mutable.Map.empty[Long, ActorRef]
+
+    /*
+    Hides the actor ref lookup from all the other functions, always use this as an endpoint to get actor refs by id.
+    ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
+    Get the reference to an existing actor.
+     */
+    def findActor(userId: Long): Option[ActorRef] = {
+      userId match {
+        case -1 =>
+          val newSupervisorId: Long = randomGenerator.nextInt(UserActorSupervisor.supervisorIdRange.toInt)
+          Some(createSupervisor(newSupervisorId.toString))
+        case _ =>
+          val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
+          knownSupervisorActor.get(supervisorId) match {
+            case Some(actorRef) =>
+              return Some(actorRef)
+            case None => Some(createSupervisor(supervisorId.toString))
+        }
+      }
+    }
+
+    /*
+    Create a new actor with the given userId.
+    NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
+     */
+    def createSupervisor(supervisorId: String): ActorRef ={
+      val userActor = system.actorOf(UserActorSupervisor.props(), supervisorId)
+      knownSupervisorActor += supervisorId.toLong -> userActor
+      return userActor
+    }
+
+    /*
+   Recover a new actor with the given userId.
+   NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
+    */
+    def recoverSupervisor(supervisorId: String): ActorRef ={
+      return createSupervisor(supervisorId)
+    }
 
     /*
     Handles the given command for a UserActor by sending it with the ask pattern to the correct actor.
     Returns actually a future of type UserCommunication.Event.
-    Giving userId -1 is no userId
+    Giving userId -1 is no userId, only for creating new users
     */
     def commandHandler(command: UserCommunication.Command, userId: Long): Future[Any] = {
-      implicit val timeout = Timeout(timeoutTime)
-      supervisorRef ? command
+      findActor(userId) match {
+        case Some(actorRef: ActorRef) => actorRef ? command
+        case None => throw new IllegalArgumentException(userId.toString)
+      }
     }
 
     /*
     similar to the command handler
     */
-    def queryHandler(command: UserCommunication.Query, userId: Long): Future[Any] = {
-      implicit val timeout = Timeout(timeoutTime)
-      supervisorRef ? command
+    def queryHandler(query: UserCommunication.Query, userId: Long): Future[Any] = {
+      findActor(userId) match {
+        case Some(actorRef: ActorRef) => actorRef ? query
+        case None => throw new IllegalArgumentException(userId.toString)
+      }
     }
 
     val postCreateUserRoute: Route = {
