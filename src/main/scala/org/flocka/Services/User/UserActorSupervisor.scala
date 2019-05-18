@@ -39,7 +39,7 @@ object UserActorSupervisor{
   }
 }
 
-class UserActorSupervisor() extends PersistentActor {
+class UserActorSupervisor() extends PersistentActor with ActorLookup {
 
   override def persistenceId = self.path.name
 
@@ -47,7 +47,19 @@ class UserActorSupervisor() extends PersistentActor {
     case _ =>
   }
 
+  override def preStart(): Unit = { println("Supervisor: " + persistenceId + " is starting.") }
+
   implicit val ec: ExecutionContext = context.dispatcher
+
+  /*
+  ToDo: Learn more about the different strategies
+  Default strategy for unmatched exceptions is escalation
+  https://doc.akka.io/docs/akka/current/fault-tolerance.html#creating-a-supervisor-strategy
+   */
+  override def supervisorStrategy = OneForOneStrategy() {
+    case ex: UserActor.InvalidUserException => Stop
+    case ex: UserActorTimeoutException => Stop
+  }
 
   /*
   Defines the service context for this actor, e.g. ../users/user-supervisor.
@@ -61,11 +73,6 @@ class UserActorSupervisor() extends PersistentActor {
   implicit val timeout = Timeout(timeoutTime)
 
   /*
-  Stores all the actors currently known to the supervisor to increase actorRef lookups.
-   */
-  var knownUserActor = mutable.Map.empty[Long, ActorRef]
-
-  /*
   Use pipe pattern to forward the actual command to the correct actor and then relay it to the asking actor enforcing conditions.
   command: The command to send to the actor
   userId: userId of the addressed user, implicates the user actor
@@ -76,7 +83,8 @@ class UserActorSupervisor() extends PersistentActor {
                      userId: Long,
                      recipientTo: ActorRef,
                      condition: Any => Boolean): Future[Any] = {
-    findActor (userId) match {
+    val actorId: Long = identifyUserActor(userId)
+    getActor(actorId.toString, context) match {
       case Some (actorRef) =>
         val actorFuture = actorRef ? command
         //ToDo: how to handle unexpected/ unwanted results?
@@ -94,8 +102,12 @@ class UserActorSupervisor() extends PersistentActor {
   /*
 Similar to the command handler
 */
-  def queryHandler(query: MessageTypes.Query, userId: Long, recipientTo: ActorRef, condition: Any => Boolean): Future[Any] = {
-    findActor(userId) match {
+  def queryHandler(query: MessageTypes.Query,
+                   userId: Long,
+                   recipientTo: ActorRef,
+                   condition: Any => Boolean): Future[Any] = {
+    val actorId: Long = identifyUserActor(userId)
+    getActor(actorId.toString, context) match {
       case Some(actorRef) =>
         val actorFuture = actorRef ? query
         //ToDo: how to handle unexpected/ unwanted results?
@@ -111,68 +123,10 @@ Similar to the command handler
   }
 
   /*
-  Hides the actor ref lookup from all the other functions, always use this as an endpoint to get actor refs by userId.
-  ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
-  Get the reference to an existing actor.
-   */
-  def findActor(userId: Long): Option[ActorRef] = {
-    val identifiedActor: Long = identifyUserActor(userId)
-
-    getKnowActor(identifiedActor) match {
-      case Some(actorRef) =>
-        return Some(actorRef)
-      case None =>
-        getChild(identifiedActor) match{
-          case Some(actorRef: ActorRef) => return Some(actorRef)
-          case None => Some(createUser(identifiedActor.toString))
-        }
-    }
-  }
-
-  /*
   Identify the user actor for the given userId.
    */
   def identifyUserActor (userId: Long): Long = {
     return userId
-  }
-
-  /*
-  Check if the actor for the given user is already known to this supervisor in the current context.
-  Returns an actor ref if the actor is known.
-  ToDo: validate the actor ref: What if an actor fails, but we don't update the collection? The message could then not be delivered and it would fail.
-   */
-  def getKnowActor (userId: Long): Option[ActorRef] = {
-    return knownUserActor.get(userId)
-  }
-
-  /*
-  Find an actor child of this actor.
-   */
-  def getChild(userId: Long): Option[ActorRef] ={
-    context.child(userId.toString) match{
-      case Some(actorRef) =>
-        knownUserActor += userId -> actorRef
-        return Some(actorRef)
-      case _ => return None
-    }
-  }
-
-  /*
-  Create a new actor with the given userId.
-  NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
-   */
-  def createUser(userId: String): ActorRef ={
-    val userActor = context.actorOf(UserActor.props(), userId)
-    knownUserActor += userId.toLong -> userActor
-    return userActor
-  }
-
-  /*
- Recover a new actor with the given userId.
- NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
-  */
-  def recoverUserActorRef(userId: String): ActorRef ={
-    return createUser(userId)
   }
 
   /*
@@ -186,17 +140,9 @@ Similar to the command handler
     val randomIdPart: Long = Math.abs(randomUUID().getMostSignificantBits) & UserActorSupervisor.randomIdMask
     val nameIdPart: Long = persistenceId.toLong & UserActorSupervisor.supervisorIdMask
     val adressableId: Long = (nameIdPart << 56) + randomIdPart
-    return adressableId
-  }
 
-  /*
-  ToDo: Learn more about the different strategies
-  Default strategy for unmatched exceptions is escalation
-  https://doc.akka.io/docs/akka/current/fault-tolerance.html#creating-a-supervisor-strategy
-   */
-  override def supervisorStrategy = OneForOneStrategy() {
-    case ex: UserActor.InvalidUserException => Stop
-    case ex: UserActorTimeoutException => knownUserActor -= ex.getMessage.toLong; Stop
+    println("UserId: " + adressableId + " was generated.")
+    return adressableId
   }
 
   //TODO figure out good interval value for snapshots

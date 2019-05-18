@@ -1,6 +1,6 @@
 package org.flocka.Services.User
 
-import akka.actor.{ActorRef, ActorSelection, ActorSystem, Identify}
+import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -8,16 +8,16 @@ import akka.stream.ActorMaterializer
 import akka.pattern.ask
 import UserServiceComs._
 import akka.util.Timeout
-import akka.actor.{ActorRef, Props}
+import akka.actor.ActorRef
 import org.flocka.MessageTypes
-
-import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
+import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.Sink
 
 //TODO maybe extend to HttpApp
-object UserService extends App {
+object UserService extends App with ActorLookup {
 
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("FLOCKA")
@@ -30,55 +30,13 @@ object UserService extends App {
     implicit val timeout = Timeout(timeoutTime)
 
     /*
-    Stores all the supervisor currently known to the service to increase actorRef lookups.
-    */
-    var knownSupervisorActor = mutable.Map.empty[Long, ActorRef]
-
-    /*
-    Hides the actor ref lookup from all the other functions, always use this as an endpoint to get actor refs by id.
-    ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
-    Get the reference to an existing actor.
-     */
-    def findActor(userId: Long): Option[ActorRef] = {
-      userId match {
-        case -1 =>
-          val newSupervisorId: Long = randomGenerator.nextInt(UserActorSupervisor.supervisorIdRange.toInt)
-          Some(createSupervisor(newSupervisorId.toString))
-        case _ =>
-          val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
-          knownSupervisorActor.get(supervisorId) match {
-            case Some(actorRef) =>
-              return Some(actorRef)
-            case None => Some(createSupervisor(supervisorId.toString))
-        }
-      }
-    }
-
-    /*
-    Create a new actor with the given userId.
-    NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
-     */
-    def createSupervisor(supervisorId: String): ActorRef ={
-      val userActor = system.actorOf(UserActorSupervisor.props(), supervisorId)
-      knownSupervisorActor += supervisorId.toLong -> userActor
-      return userActor
-    }
-
-    /*
-   Recover a new actor with the given userId.
-   NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
-    */
-    def recoverSupervisor(supervisorId: String): ActorRef ={
-      return createSupervisor(supervisorId)
-    }
-
-    /*
     Handles the given command for a UserActor by sending it with the ask pattern to the correct actor.
     Returns actually a future of type UserCommunication.Event.
     Giving userId -1 is no userId, only for creating new users
     */
     def commandHandler(command: MessageTypes.Command, userId: Long): Future[Any] = {
-      findActor(userId) match {
+      val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
+      getActor(supervisorId.toString, system) match {
         case Some(actorRef: ActorRef) => actorRef ? command
         case None => throw new IllegalArgumentException(userId.toString)
       }
@@ -88,7 +46,8 @@ object UserService extends App {
     similar to the command handler
     */
     def queryHandler(query: MessageTypes.Query, userId: Long): Future[Any] = {
-      findActor(userId) match {
+      val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
+      getActor(supervisorId.toString, system) match {
         case Some(actorRef: ActorRef) => actorRef ? query
         case None => throw new IllegalArgumentException(userId.toString)
       }
@@ -170,6 +129,24 @@ object UserService extends App {
           }
         }
       }
+    }
+
+    def time[R](block: => R): R = {
+      val t0 = System.nanoTime()
+      val result = block    // call-by-name
+      val t1 = System.nanoTime()
+      val elapsedSeconds: Double = ((t1 - t0) / 1000000000)
+      println("Elapsed time: " + elapsedSeconds + " seconds" )
+      result
+    }
+
+    var list = time {
+      val Attempts: Int = 100000
+      val populateResult = Source(1 to Attempts)
+        .mapAsyncUnordered(32)(_ =>
+          commandHandler(CreateUser(), -1))
+        .runWith(Sink.ignore)
+      Await.ready(populateResult, Duration.Inf)
     }
 
     def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~ getCreditRoute ~
