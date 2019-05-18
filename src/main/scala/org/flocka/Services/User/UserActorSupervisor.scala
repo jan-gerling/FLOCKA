@@ -158,7 +158,7 @@ Similar to the command handler
   2. randomUserId part (last 56 bit) - unique for each user actor of this supervisor
    */
   def generateUserId(): Long = {
-    val randomIdPart: Long = Math.abs(randomUUID().getLeastSignificantBits) & UserActorSupervisor.randomIdMask
+    val randomIdPart: Long = Math.abs(randomUUID().getMostSignificantBits) & UserActorSupervisor.randomIdMask
     val nameIdPart: Long = persistenceId.toLong & UserActorSupervisor.supervisorIdMask
     val adressableId: Long = (nameIdPart << 56) + randomIdPart
     return adressableId
