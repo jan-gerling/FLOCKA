@@ -5,24 +5,22 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route}
 import akka.stream.ActorMaterializer
-import akka.pattern.ask
 import UserServiceComs._
 import akka.util.Timeout
 import akka.actor.ActorRef
 import org.flocka.MessageTypes
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import akka.stream.scaladsl.Source
-import akka.stream.scaladsl.Sink
 
-object UserService extends App with ActorLookup with CommandHandler {
+object UserService extends App with ActorLookup with CommandHandler with QueryHandler {
 
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("FLOCKA")
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     implicit val executor: ExecutionContext = system.dispatcher
 
+    val randomGenerator  = scala.util.Random
     val service = "users"
     val timeoutTime: FiniteDuration = 500 millisecond
     implicit val timeout: Timeout = Timeout(timeoutTime)
@@ -32,21 +30,26 @@ object UserService extends App with ActorLookup with CommandHandler {
     Giving userId -1 is no userId, only for creating new users
     */
     def commandHandler(command: MessageTypes.Command, userId: Long): Future[Any] = {
-      val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
-      val supervisorRef = getActor(supervisorId.toString, system)
-
-      super.commandHandler(command, supervisorRef, timeoutTime, executor)
+      super.commandHandler(command, getActor(userId), timeoutTime, executor)
     }
 
     /*
     similar to the command handler
     */
     def queryHandler(query: MessageTypes.Query, userId: Long): Future[Any] = {
-      val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
-      getActor(supervisorId.toString, system) match {
-        case Some(actorRef: ActorRef) => actorRef ? query
-        case None => throw new IllegalArgumentException(userId.toString)
+      super.queryHandler(query, getActor(userId), timeoutTime, executor)
+    }
+
+    /*
+    Get the actor reference for the supervisor for the given userid.
+     */
+    def getActor(userId: Long): Option[ActorRef] ={
+      var supervisorId: Long = -1
+      userId match {
+        case -1 => supervisorId = randomGenerator.nextInt(UserActorSupervisor.supervisorIdRange)
+        case _ => supervisorId = UserActorSupervisor.extractSupervisorId(userId)
       }
+      return super.getActor(supervisorId.toString, system, UserActorSupervisor.props())
     }
 
     val postCreateUserRoute: Route = {
@@ -125,24 +128,6 @@ object UserService extends App with ActorLookup with CommandHandler {
           }
         }
       }
-    }
-
-    def time[R](block: => R): R = {
-      val t0 = System.nanoTime()
-      val result = block    // call-by-name
-      val t1 = System.nanoTime()
-      val elapsedSeconds: Double = ((t1 - t0) / 1000000000)
-      println("Elapsed time: " + elapsedSeconds + " seconds" )
-      result
-    }
-
-    var list = time {
-      val Attempts: Int = 100000
-      val populateResult = Source(1 to Attempts)
-        .mapAsyncUnordered(32)(_ =>
-          commandHandler(CreateUser(), -1))
-        .runWith(Sink.ignore)
-      Await.ready(populateResult, Duration.Inf)
     }
 
     def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~ getCreditRoute ~

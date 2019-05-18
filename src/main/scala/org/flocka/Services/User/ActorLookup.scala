@@ -1,6 +1,7 @@
 package org.flocka.Services.User
 
-import akka.actor.{ActorContext, ActorRef, ActorRefFactory, ActorSystem}
+import akka.actor.{ActorContext, ActorRef, ActorRefFactory, Props}
+
 import scala.collection.mutable
 
 trait ActorLookup {
@@ -11,17 +12,17 @@ trait ActorLookup {
   ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
   Get the reference to an existing actor.
    */
-  def getActor(actorId: String, context: ActorContext, factory: ActorRefFactory): Option[ActorRef] = {
+  def getActor(actorId: String, context: ActorContext, factory: ActorRefFactory, props: Props): Option[ActorRef] = {
     getChild(actorId, context) match{
       case Some(actorRef: ActorRef) => return Some(actorRef)
-      case None => Some(createActor(actorId, factory))
+      case None => Some(createActor(actorId, factory, props))
     }
   }
 
-  def getActor(actorId: String, factory: ActorRefFactory): Option[ActorRef] = {
+  def getActor(actorId: String, factory: ActorRefFactory, props: Props): Option[ActorRef] = {
     getKnownChild(actorId) match{
       case Some(actorRef: ActorRef) => return Some(actorRef)
-      case None => Some(createActor(actorId, factory))
+      case None => Some(createActor(actorId, factory, props))
     }
   }
 
@@ -42,8 +43,8 @@ trait ActorLookup {
   Create a new actor with the given userId.
   NEVER CALL THIS except you really know what you are doing and have a good reason. Use actorHandler instead.
    */
-  protected def createActor(actorId: String, factory: ActorRefFactory): ActorRef ={
-    var actorRef = factory.actorOf(UserActor.props(), actorId)
+  protected def createActor(actorId: String, factory: ActorRefFactory, props: Props): ActorRef ={
+    var actorRef = factory.actorOf(props, actorId)
     knownChildren  += actorId -> actorRef
     return actorRef
   }

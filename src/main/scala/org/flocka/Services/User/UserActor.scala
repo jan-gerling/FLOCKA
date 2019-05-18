@@ -57,21 +57,6 @@ class UserActor() extends PersistentActor{
     case SnapshotOffer(_, snapshot: UserState) => state = snapshot
   }
 
-  /*
- For Debugging only.
-  override def preStart() = println("User actor: " + persistenceId + " at " + self.path + " was started.")
-  override def postStop() = println("User actor: " + persistenceId + " at " + self.path + " was shut down.")
-  override def preRestart(reason: Throwable, message: Option[Any]) = {
-    println("User actor: " + persistenceId + " at " + self.path + " is restarting.")
-    super.preRestart(reason, message)
-  }
-  override def postRestart(reason: Throwable) = {
-    println("User actor: " + persistenceId + " at " + self.path + " has restarted.")
-    super.postRestart(reason)
-  }
- End Debugging only.
-  */
-
   def queryHandler(query: MessageTypes.Query, userId: Long, event: MessageTypes.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
     try {
@@ -149,4 +134,19 @@ class UserActor() extends PersistentActor{
     case ReceiveTimeout =>
       throw new UserActorTimeoutException(persistenceId)
   }
+
+  /*
+  For Debugging only.
+  override def preStart() = println("User actor: " + persistenceId + " at " + self.path + " was started.")
+  override def postStop() = println("User actor: " + persistenceId + " at " + self.path + " was shut down.")
+  override def preRestart(reason: Throwable, message: Option[Any]) = {
+    println("User actor: " + persistenceId + " at " + self.path + " is restarting.")
+    super.preRestart(reason, message)
+  }
+  override def postRestart(reason: Throwable) = {
+    println("User actor: " + persistenceId + " at " + self.path + " has restarted.")
+    super.postRestart(reason)
+  }
+  End Debugging only.
+  */
 }

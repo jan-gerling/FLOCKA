@@ -45,8 +45,6 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
     case _ =>
   }
 
-  override def preStart(): Unit = { println("Supervisor: " + persistenceId + " is starting.") }
-
   implicit val ec: ExecutionContext = context.dispatcher
 
   /*
@@ -82,7 +80,7 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
                      recipientTo: ActorRef,
                      postConditions: Any => Boolean): Future[Any] = {
     val actorId: Long = identifyUserActor(userId)
-    getActor(actorId.toString, context) match {
+    getActor(actorId.toString, context, UserActor.props()) match {
       case Some (actorRef) =>
         val actorFuture = actorRef ? command
         //ToDo: how to handle unexpected/ unwanted results?
@@ -104,7 +102,7 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
                    recipientTo: ActorRef,
                    postConditions: Any => Boolean): Future[Any] = {
     val actorId: Long = identifyUserActor(userId)
-    getActor(actorId.toString, context) match {
+    getActor(actorId.toString, context, UserActor.props()) match {
       case Some(actorRef) =>
         val actorFuture = actorRef ? query
         //ToDo: how to handle unexpected/ unwanted results?
@@ -207,4 +205,19 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
 
     case command @ _  => throw new IllegalArgumentException(command.toString)
   }
+
+  /*
+  For Debugging only.
+  override def preStart() = println("Supervisor: " + persistenceId + " at " + self.path + " was started.")
+  override def postStop() = println("Supervisor: " + persistenceId + " at " + self.path + " was shut down.")
+  override def preRestart(reason: Throwable, message: Option[Any]) = {
+    println("Supervisor: " + persistenceId + " at " + self.path + " is restarting.")
+    super.preRestart(reason, message)
+  }
+  override def postRestart(reason: Throwable) = {
+    println("Supervisor: " + persistenceId + " at " + self.path + " has restarted.")
+    super.postRestart(reason)
+  }
+  End Debugging only.
+  */
 }
