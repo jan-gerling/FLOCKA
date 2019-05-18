@@ -1,16 +1,19 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
+
 import akka.pattern.ask
 import akka.pattern.pipe
 import UserServiceComs._
-import akka.actor.SupervisorStrategy.{Stop}
+import akka.actor.SupervisorStrategy.Stop
 import akka.util.Timeout
+
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor.{ActorRef, OneForOneStrategy, Props}
-import akka.persistence.{PersistentActor, SnapshotOffer}
+import akka.persistence.{PersistentActor}
+import org.flocka.MessageTypes
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
 /*
@@ -69,11 +72,11 @@ class UserActorSupervisor() extends PersistentActor {
   recipientTo: The asking actor, often the user service, to this actor the response from the user actor is send to+
   condition: all conditions the response has to fulfill in order to be passed
   */
-  def commandHandler(command: UserServiceComs.Command,
+  def commandHandler(command: MessageTypes.Command,
                      userId: Long,
                      recipientTo: ActorRef,
                      condition: Any => Boolean): Future[Any] = {
-    actorHandler (userId) match {
+    findActor (userId) match {
       case Some (actorRef) =>
         val actorFuture = actorRef ? command
         //ToDo: how to handle unexpected/ unwanted results?
@@ -91,8 +94,8 @@ class UserActorSupervisor() extends PersistentActor {
   /*
 Similar to the command handler
 */
-  def queryHandler(query: UserServiceComs.Query, userId: Long, recipientTo: ActorRef, condition: Any => Boolean): Future[Any] = {
-    actorHandler(userId) match {
+  def queryHandler(query: MessageTypes.Query, userId: Long, recipientTo: ActorRef, condition: Any => Boolean): Future[Any] = {
+    findActor(userId) match {
       case Some(actorRef) =>
         val actorFuture = actorRef ? query
         //ToDo: how to handle unexpected/ unwanted results?
@@ -110,25 +113,47 @@ Similar to the command handler
   /*
   Hides the actor ref lookup from all the other functions, always use this as an endpoint to get actor refs by userId.
   ToDo: Find distributed implementation of actorRef lookups maybe delegating this already to temporary actors?
-  */
-  def actorHandler(userId: Long): Option[ActorRef] = {
-    findActor(userId) match{
-      case Some(actorRef: ActorRef) => return Some(actorRef)
-      case None => Some(createUser(userId.toString))
+  Get the reference to an existing actor.
+   */
+  def findActor(userId: Long): Option[ActorRef] = {
+    val identifiedActor: Long = identifyUserActor(userId)
+
+    getKnowActor(identifiedActor) match {
+      case Some(actorRef) =>
+        return Some(actorRef)
+      case None =>
+        getChild(identifiedActor) match{
+          case Some(actorRef: ActorRef) => return Some(actorRef)
+          case None => Some(createUser(identifiedActor.toString))
+        }
     }
   }
 
   /*
-  Get the reference to an existing actor.
+  Identify the user actor for the given userId.
    */
-  def findActor(userId: Long): Option[ActorRef] = {
-    knownUserActor.get(userId) match {
+  def identifyUserActor (userId: Long): Long = {
+    return userId
+  }
+
+  /*
+  Check if the actor for the given user is already known to this supervisor in the current context.
+  Returns an actor ref if the actor is known.
+  ToDo: validate the actor ref: What if an actor fails, but we don't update the collection? The message could then not be delivered and it would fail.
+   */
+  def getKnowActor (userId: Long): Option[ActorRef] = {
+    return knownUserActor.get(userId)
+  }
+
+  /*
+  Find an actor child of this actor.
+   */
+  def getChild(userId: Long): Option[ActorRef] ={
+    context.child(userId.toString) match{
       case Some(actorRef) =>
+        knownUserActor += userId -> actorRef
         return Some(actorRef)
-      case None =>
-        return Some(context.child(userId.toString)).getOrElse{
-          return None
-        }
+      case _ => return None
     }
   }
 

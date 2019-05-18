@@ -9,13 +9,14 @@ import akka.pattern.ask
 import UserServiceComs._
 import akka.util.Timeout
 import akka.actor.{ActorRef, Props}
+import org.flocka.MessageTypes
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-//TODO maybe extend HttpApp
+//TODO maybe extend to HttpApp
 object UserService extends App {
 
   override def main(args: Array[String]): Unit = {
@@ -76,7 +77,7 @@ object UserService extends App {
     Returns actually a future of type UserCommunication.Event.
     Giving userId -1 is no userId, only for creating new users
     */
-    def commandHandler(command: UserServiceComs.Command, userId: Long): Future[Any] = {
+    def commandHandler(command: MessageTypes.Command, userId: Long): Future[Any] = {
       findActor(userId) match {
         case Some(actorRef: ActorRef) => actorRef ? command
         case None => throw new IllegalArgumentException(userId.toString)
@@ -86,7 +87,7 @@ object UserService extends App {
     /*
     similar to the command handler
     */
-    def queryHandler(query: UserServiceComs.Query, userId: Long): Future[Any] = {
+    def queryHandler(query: MessageTypes.Query, userId: Long): Future[Any] = {
       findActor(userId) match {
         case Some(actorRef: ActorRef) => actorRef ? query
         case None => throw new IllegalArgumentException(userId.toString)

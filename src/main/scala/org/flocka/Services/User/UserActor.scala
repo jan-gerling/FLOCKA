@@ -5,6 +5,7 @@ import UserServiceComs._
 import akka.actor.Props
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import com.sun.javaws.exceptions.InvalidArgumentException
+import org.flocka.MessageTypes
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
 import scala.concurrent.duration._
@@ -19,7 +20,7 @@ case class UserState(userId: Long,
                      active: Boolean,
                      credit: Long) {
 
-  def updated(event: Event): UserState = event match {
+  def updated(event: MessageTypes.Event): UserState = event match {
     case UserCreated(userId) =>
       copy(userId = userId, active = true, 0)
 
@@ -49,11 +50,11 @@ class UserActor() extends PersistentActor{
   context.setReceiveTimeout(150 seconds)
   var state = UserState(persistenceId.toLong, false, 0)
 
-  def updateState(event: Event): Unit =
+  def updateState(event: MessageTypes.Event): Unit =
     state = state.updated(event)
 
   val receiveRecover: Receive = {
-    case evt: Event                             => updateState(evt)
+    case evt: MessageTypes.Event                             => updateState(evt)
     case SnapshotOffer(_, snapshot: UserState) => state = snapshot
   }
 
@@ -72,7 +73,7 @@ class UserActor() extends PersistentActor{
  End Debugging only.
   */
 
-  def queryHandler(query: UserServiceComs.Query, userId: Long, event: UserServiceComs.Event ): Unit = {
+  def queryHandler(query: MessageTypes.Query, userId: Long, event: MessageTypes.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
     try {
       if(validateState(query))
@@ -83,7 +84,7 @@ class UserActor() extends PersistentActor{
     }
   }
 
-  def commandHandler(command: UserServiceComs.Command, userId: Long, event: UserServiceComs.Event ): Unit = {
+  def commandHandler(command: MessageTypes.Command, userId: Long, event: MessageTypes.Event ): Unit = {
     try {
       if(validateState(command)) persist(event) { event =>
         updateState(event)
@@ -105,7 +106,7 @@ class UserActor() extends PersistentActor{
   /*
   Validate if the user actor state allows any interaction at the current point
    */
-  def validateState(command: UserServiceComs.Command): Boolean ={
+  def validateState(command: MessageTypes.Command): Boolean ={
     if (command == UserServiceComs.CreateUser() && state.active == false) {
       return true
     } else if(state.active) {
@@ -117,7 +118,7 @@ class UserActor() extends PersistentActor{
     throw new IllegalArgumentException(command.toString)
   }
 
-  def validateState(query: UserServiceComs.Query): Boolean ={
+  def validateState(query: MessageTypes.Query): Boolean ={
     if(state.active) {
       return  true
     }
