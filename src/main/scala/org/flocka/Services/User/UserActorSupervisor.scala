@@ -1,16 +1,13 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
-
-import akka.pattern.ask
-import akka.pattern.pipe
 import UserServiceComs._
 import akka.actor.SupervisorStrategy.Stop
 import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor.{ActorRef, OneForOneStrategy, Props}
-import akka.persistence.{PersistentActor}
+import akka.persistence.PersistentActor
 import org.flocka.MessageTypes
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
@@ -24,20 +21,9 @@ object UserActorSupervisor{
   For more details on props look here: https://doc.akka.io/docs/akka/2.5.5/scala/actors.html
    */
   def props(): Props = Props(new UserActorSupervisor())
-
-  final val rebuildSupervisorIdMask: Long = 0xFF00000000000000L
-  final val supervisorIdMask: Long = 0x00000000000000FFL
-  final val randomIdMask: Long = 0x00FFFFFFFFFFFFFFL
-  final val randomIdBitLength = 56
-  //-1 to avoid negative longs
-  final val supervisorIdRange: Int = Math.pow(2, 64 - randomIdBitLength - 1).toInt
-
-  final def extractSupervisorId(userId: Long): Long ={
-    return (userId & rebuildSupervisorIdMask) >> randomIdBitLength
-  }
 }
 
-class UserActorSupervisor() extends PersistentActor with ActorLookup {
+class UserActorSupervisor() extends PersistentActor with ActorLookup with CommandHandler with QueryHandler with UserIdManager{
 
   override def persistenceId = self.path.name
 
@@ -45,7 +31,7 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
     case _ =>
   }
 
-  implicit val ec: ExecutionContext = context.dispatcher
+  implicit val executor: ExecutionContext = context.dispatcher
 
   /*
   ToDo: Learn more about the different strategies
@@ -76,51 +62,28 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
   condition: all conditions the response has to fulfill in order to be passed
   */
   def commandHandler(command: MessageTypes.Command,
-                     userId: Long,
-                     recipientTo: ActorRef,
-                     postConditions: Any => Boolean): Future[Any] = {
-    val actorId: Long = identifyUserActor(userId)
-    getActor(actorId.toString, context, UserActor.props()) match {
-      case Some (actorRef) =>
-        val actorFuture = actorRef ? command
-        //ToDo: how to handle unexpected/ unwanted results?
-        //ToDo: how to handle exceptions? aside from supervisor strategies?
-        actorFuture.filter (postConditions).recover {
-          // When filter fails, it will have a java.util.NoSuchElementException
-          case m: NoSuchElementException => 0
-        }
-        actorFuture pipeTo recipientTo
-      case None => throw new IllegalArgumentException (userId.toString)
-    }
+                   userId: Long,
+                   recipientTo: ActorRef,
+                   postConditions: Any => Boolean): Future[Any] = {
+    super.commandHandler(command, getActor(userId), timeoutTime, executor, Some(recipientTo), postConditions)
   }
 
   /*
-  Similar to the command handler
-  */
+ Similar to the command handler
+ */
   def queryHandler(query: MessageTypes.Query,
                    userId: Long,
                    recipientTo: ActorRef,
                    postConditions: Any => Boolean): Future[Any] = {
-    val actorId: Long = identifyUserActor(userId)
-    getActor(actorId.toString, context, UserActor.props()) match {
-      case Some(actorRef) =>
-        val actorFuture = actorRef ? query
-        //ToDo: how to handle unexpected/ unwanted results?
-        //ToDo: how to handle exceptions? aside from supervisor strategies?
-        actorFuture.filter(postConditions).recover {
-          // When filter fails, it will have a java.util.NoSuchElementException
-          case m: NoSuchElementException => 0
-        }
-        actorFuture pipeTo recipientTo
-      case None => throw new IllegalArgumentException (userId.toString)
-    }
+    super.queryHandler(query, getActor(userId), timeoutTime, executor, Some(recipientTo), postConditions)
   }
 
   /*
-  Identify the user actor for the given userId.
+  Get the actor reference for the supervisor for the given userid.
    */
-  def identifyUserActor (userId: Long): Long = {
-    return userId
+  def getActor(userId: Long): Option[ActorRef] ={
+    val actorId: Long = extractUserActorId(userId)
+    return super.getActor(actorId.toString, context, UserActor.props())
   }
 
   /*
@@ -131,11 +94,10 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
   2. randomUserId part (last 56 bit) - unique for each user actor of this supervisor
    */
   def generateUserId(): Long = {
-    val randomIdPart: Long = Math.abs(randomUUID().getMostSignificantBits) & UserActorSupervisor.randomIdMask
-    val nameIdPart: Long = persistenceId.toLong & UserActorSupervisor.supervisorIdMask
-    val adressableId: Long = (nameIdPart << UserActorSupervisor.randomIdBitLength) + randomIdPart
+    val randomIdPart: Long = Math.abs(randomUUID().getMostSignificantBits) & randomIdMask
+    val nameIdPart: Long = persistenceId.toLong & supervisorIdMask
+    val adressableId: Long = (nameIdPart << randomIdBitLength) + randomIdPart
 
-    println("UserId: " + adressableId + " was generated.")
     return adressableId
   }
 

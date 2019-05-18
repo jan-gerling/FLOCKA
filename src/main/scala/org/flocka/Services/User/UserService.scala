@@ -13,7 +13,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-object UserService extends App with ActorLookup with CommandHandler with QueryHandler {
+object UserService extends App with ActorLookup with CommandHandler with QueryHandler with UserIdManager{
 
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("FLOCKA")
@@ -46,8 +46,8 @@ object UserService extends App with ActorLookup with CommandHandler with QueryHa
     def getActor(userId: Long): Option[ActorRef] ={
       var supervisorId: Long = -1
       userId match {
-        case -1 => supervisorId = randomGenerator.nextInt(UserActorSupervisor.supervisorIdRange)
-        case _ => supervisorId = UserActorSupervisor.extractSupervisorId(userId)
+        case -1 => supervisorId = randomGenerator.nextInt(supervisorIdRange)
+        case _ => supervisorId = extractSupervisorId(userId)
       }
       return super.getActor(supervisorId.toString, system, UserActorSupervisor.props())
     }
