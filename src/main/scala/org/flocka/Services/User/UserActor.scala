@@ -4,7 +4,6 @@ import akka.actor._
 import UserServiceComs._
 import akka.actor.Props
 import akka.persistence.{PersistentActor, SnapshotOffer}
-import com.sun.javaws.exceptions.InvalidArgumentException
 import org.flocka.MessageTypes
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 

@@ -7,9 +7,7 @@ import akka.pattern.pipe
 import UserServiceComs._
 import akka.actor.SupervisorStrategy.Stop
 import akka.util.Timeout
-
 import scala.concurrent.duration._
-import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor.{ActorRef, OneForOneStrategy, Props}
 import akka.persistence.{PersistentActor}
@@ -82,43 +80,41 @@ class UserActorSupervisor() extends PersistentActor with ActorLookup {
   def commandHandler(command: MessageTypes.Command,
                      userId: Long,
                      recipientTo: ActorRef,
-                     condition: Any => Boolean): Future[Any] = {
+                     postConditions: Any => Boolean): Future[Any] = {
     val actorId: Long = identifyUserActor(userId)
     getActor(actorId.toString, context) match {
       case Some (actorRef) =>
         val actorFuture = actorRef ? command
         //ToDo: how to handle unexpected/ unwanted results?
         //ToDo: how to handle exceptions? aside from supervisor strategies?
-        actorFuture.filter (condition).recover {
+        actorFuture.filter (postConditions).recover {
           // When filter fails, it will have a java.util.NoSuchElementException
           case m: NoSuchElementException => 0
         }
         actorFuture pipeTo recipientTo
-      case None =>
-        throw new IllegalArgumentException ("Can't find an existing user for user id: " + userId)
+      case None => throw new IllegalArgumentException (userId.toString)
     }
   }
 
   /*
-Similar to the command handler
-*/
+  Similar to the command handler
+  */
   def queryHandler(query: MessageTypes.Query,
                    userId: Long,
                    recipientTo: ActorRef,
-                   condition: Any => Boolean): Future[Any] = {
+                   postConditions: Any => Boolean): Future[Any] = {
     val actorId: Long = identifyUserActor(userId)
     getActor(actorId.toString, context) match {
       case Some(actorRef) =>
         val actorFuture = actorRef ? query
         //ToDo: how to handle unexpected/ unwanted results?
         //ToDo: how to handle exceptions? aside from supervisor strategies?
-        actorFuture.filter(condition).recover {
+        actorFuture.filter(postConditions).recover {
           // When filter fails, it will have a java.util.NoSuchElementException
           case m: NoSuchElementException => 0
         }
         actorFuture pipeTo recipientTo
-      case None =>
-        throw new IllegalArgumentException("Can't find an existing user for user id: " + userId)
+      case None => throw new IllegalArgumentException (userId.toString)
     }
   }
 
@@ -133,13 +129,13 @@ Similar to the command handler
   Generate a userId for a user, this userId is also used to address the correct actor via the actor path.
   DO NOT ALTER A userID after it was assigned.
   The user id consists of two components:
-  1. supervisor part (first 8 bit) - equivalent to the supervisor id, used to identify a supervisor for a specific userid
+  1. supervisor part (first 12 bit) - equivalent to the supervisor id, used to identify a supervisor for a specific userid
   2. randomUserId part (last 56 bit) - unique for each user actor of this supervisor
    */
   def generateUserId(): Long = {
     val randomIdPart: Long = Math.abs(randomUUID().getMostSignificantBits) & UserActorSupervisor.randomIdMask
     val nameIdPart: Long = persistenceId.toLong & UserActorSupervisor.supervisorIdMask
-    val adressableId: Long = (nameIdPart << 56) + randomIdPart
+    val adressableId: Long = (nameIdPart << UserActorSupervisor.randomIdBitLength) + randomIdPart
 
     println("UserId: " + adressableId + " was generated.")
     return adressableId

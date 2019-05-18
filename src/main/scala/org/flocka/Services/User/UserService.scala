@@ -3,7 +3,7 @@ package org.flocka.Services.User
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Route}
 import akka.stream.ActorMaterializer
 import akka.pattern.ask
 import UserServiceComs._
@@ -16,30 +16,26 @@ import scala.util.{Failure, Success}
 import akka.stream.scaladsl.Source
 import akka.stream.scaladsl.Sink
 
-//TODO maybe extend to HttpApp
-object UserService extends App with ActorLookup {
+object UserService extends App with ActorLookup with CommandHandler {
 
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("FLOCKA")
-    implicit val executor: ExecutionContext = system.dispatcher
     implicit val materializer: ActorMaterializer = ActorMaterializer()
+    implicit val executor: ExecutionContext = system.dispatcher
 
     val service = "users"
-    val timeoutTime = 500 millisecond;
-    val randomGenerator  = scala.util.Random
-    implicit val timeout = Timeout(timeoutTime)
+    val timeoutTime: FiniteDuration = 500 millisecond
+    implicit val timeout: Timeout = Timeout(timeoutTime)
 
     /*
-    Handles the given command for a UserActor by sending it with the ask pattern to the correct actor.
-    Returns actually a future of type UserCommunication.Event.
+    Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
     Giving userId -1 is no userId, only for creating new users
     */
     def commandHandler(command: MessageTypes.Command, userId: Long): Future[Any] = {
       val supervisorId: Long = UserActorSupervisor.extractSupervisorId(userId)
-      getActor(supervisorId.toString, system) match {
-        case Some(actorRef: ActorRef) => actorRef ? command
-        case None => throw new IllegalArgumentException(userId.toString)
-      }
+      val supervisorRef = getActor(supervisorId.toString, system)
+
+      super.commandHandler(command, supervisorRef, timeoutTime, executor)
     }
 
     /*
