@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.pattern.ask
-import UserCommunication._
+import UserServiceComs._
 import akka.util.Timeout
 import akka.actor.{ActorRef, Props}
 
@@ -76,7 +76,7 @@ object UserService extends App {
     Returns actually a future of type UserCommunication.Event.
     Giving userId -1 is no userId, only for creating new users
     */
-    def commandHandler(command: UserCommunication.Command, userId: Long): Future[Any] = {
+    def commandHandler(command: UserServiceComs.Command, userId: Long): Future[Any] = {
       findActor(userId) match {
         case Some(actorRef: ActorRef) => actorRef ? command
         case None => throw new IllegalArgumentException(userId.toString)
@@ -86,7 +86,7 @@ object UserService extends App {
     /*
     similar to the command handler
     */
-    def queryHandler(query: UserCommunication.Query, userId: Long): Future[Any] = {
+    def queryHandler(query: UserServiceComs.Query, userId: Long): Future[Any] = {
       findActor(userId) match {
         case Some(actorRef: ActorRef) => actorRef ? query
         case None => throw new IllegalArgumentException(userId.toString)

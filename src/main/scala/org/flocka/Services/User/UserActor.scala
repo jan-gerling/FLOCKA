@@ -1,7 +1,7 @@
 package org.flocka.Services.User
 
 import akka.actor._
-import UserCommunication._
+import UserServiceComs._
 import akka.actor.Props
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import com.sun.javaws.exceptions.InvalidArgumentException
@@ -72,7 +72,7 @@ class UserActor() extends PersistentActor{
  End Debugging only.
   */
 
-  def queryHandler(query: UserCommunication.Query, userId: Long, event: UserCommunication.Event ): Unit = {
+  def queryHandler(query: UserServiceComs.Query, userId: Long, event: UserServiceComs.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
     try {
       if(validateState(query))
@@ -83,7 +83,7 @@ class UserActor() extends PersistentActor{
     }
   }
 
-  def commandHandler(command: UserCommunication.Command, userId: Long, event: UserCommunication.Event ): Unit = {
+  def commandHandler(command: UserServiceComs.Command, userId: Long, event: UserServiceComs.Event ): Unit = {
     try {
       if(validateState(command)) persist(event) { event =>
         updateState(event)
@@ -105,19 +105,19 @@ class UserActor() extends PersistentActor{
   /*
   Validate if the user actor state allows any interaction at the current point
    */
-  def validateState(command: UserCommunication.Command): Boolean ={
-    if (command == UserCommunication.CreateUser() && state.active == false) {
+  def validateState(command: UserServiceComs.Command): Boolean ={
+    if (command == UserServiceComs.CreateUser() && state.active == false) {
       return true
     } else if(state.active) {
       return  true
-    } else if (command != UserCommunication.CreateUser() && state.active == false) {
+    } else if (command != UserServiceComs.CreateUser() && state.active == false) {
       throw new UserActor.InvalidUserException(state.userId.toString)
     }
 
     throw new IllegalArgumentException(command.toString)
   }
 
-  def validateState(query: UserCommunication.Query): Boolean ={
+  def validateState(query: UserServiceComs.Query): Boolean ={
     if(state.active) {
       return  true
     }

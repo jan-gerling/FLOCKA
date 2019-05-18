@@ -3,7 +3,7 @@ package org.flocka.Services.User
 import java.util.UUID.randomUUID
 import akka.pattern.ask
 import akka.pattern.pipe
-import UserCommunication._
+import UserServiceComs._
 import akka.actor.SupervisorStrategy.{Stop}
 import akka.util.Timeout
 import scala.concurrent.duration._
@@ -69,10 +69,10 @@ class UserActorSupervisor() extends PersistentActor {
   recipientTo: The asking actor, often the user service, to this actor the response from the user actor is send to+
   condition: all conditions the response has to fulfill in order to be passed
   */
-  def commandHandler(command: UserCommunication.Command,
-                      userId: Long,
-                      recipientTo: ActorRef,
-                      condition: Any => Boolean): Future[Any] = {
+  def commandHandler(command: UserServiceComs.Command,
+                     userId: Long,
+                     recipientTo: ActorRef,
+                     condition: Any => Boolean): Future[Any] = {
     actorHandler (userId) match {
       case Some (actorRef) =>
         val actorFuture = actorRef ? command
@@ -91,7 +91,7 @@ class UserActorSupervisor() extends PersistentActor {
   /*
 Similar to the command handler
 */
-  def queryHandler(query: UserCommunication.Query, userId: Long, recipientTo: ActorRef, condition: Any => Boolean): Future[Any] = {
+  def queryHandler(query: UserServiceComs.Query, userId: Long, recipientTo: ActorRef, condition: Any => Boolean): Future[Any] = {
     actorHandler(userId) match {
       case Some(actorRef) =>
         val actorFuture = actorRef ? query
@@ -188,7 +188,7 @@ Similar to the command handler
         userId,
         sender(),
         _ match {
-          case UserCommunication.UserCreated(resultId) => userId == resultId
+          case UserServiceComs.UserCreated(resultId) => userId == resultId
           case _ => false
         }
       )
@@ -198,7 +198,7 @@ Similar to the command handler
         userId,
         sender(),
         _ match {
-          case UserCommunication.UserDeleted(resultId, status) => userId == resultId && status
+          case UserServiceComs.UserDeleted(resultId, status) => userId == resultId && status
           case _ => false
         })
     case query @ FindUser(userId) =>
@@ -207,7 +207,7 @@ Similar to the command handler
         userId,
         sender(),
         _ match {
-          case UserCommunication.UserFound(resultId, _) => userId == resultId
+          case UserServiceComs.UserFound(resultId, _) => userId == resultId
           case _ => false
         })
     case query @ GetCredit(userId) =>
@@ -216,7 +216,7 @@ Similar to the command handler
         userId,
         sender(),
         _ match {
-          case UserCommunication.UserDeleted(resultId, _) => userId == resultId
+          case UserServiceComs.UserDeleted(resultId, _) => userId == resultId
           case _ => false
         })
     case command @ AddCredit(userId, amount) =>
@@ -225,7 +225,7 @@ Similar to the command handler
         userId,
         sender(),
         _ match {
-          case UserCommunication.CreditAdded(resultId, resultAmount, _) => userId == resultId && resultAmount == amount
+          case UserServiceComs.CreditAdded(resultId, resultAmount, _) => userId == resultId && resultAmount == amount
           case _ => false
         })
     case command @ SubtractCredit(userId, amount) =>
@@ -234,7 +234,7 @@ Similar to the command handler
         userId,
         sender(),
         _ match {
-          case UserCommunication.CreditSubtracted(resultId, resultAmount, _) => userId == resultId && resultAmount == amount
+          case UserServiceComs.CreditSubtracted(resultId, resultAmount, _) => userId == resultId && resultAmount == amount
           case _ => false
         })
 
