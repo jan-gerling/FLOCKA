@@ -9,13 +9,12 @@ import UserServiceComs._
 import akka.util.Timeout
 import akka.actor.ActorRef
 import org.flocka.MessageTypes
-import org.flocka.ServiceBasics.{ActorLookup, CommandHandler, QueryHandler}
+import org.flocka.ServiceBasics.{ServiceBase}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-object UserService extends App with ActorLookup with CommandHandler with QueryHandler with UserIdManager{
-
+object UserService extends ServiceBase with UserIdManager{
   override def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("FLOCKA")
     implicit val materializer: ActorMaterializer = ActorMaterializer()
