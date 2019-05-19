@@ -9,14 +9,19 @@ import org.flocka.Services.User.UserActor.UserActorTimeoutException
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
+/**
+  * Base class for all supervisors to be implemented in every service to propagate changes for our supervisor behavior.
+  * Please adjust/ extend supervisorStrategy and timeout according to your needs.
+  * You might want to adjust/ extend receiveRecover and snapShotInterval as well, but please verify if it is really necessary.
+  */
 abstract class PersistentSupervisorBase extends PersistentActor with ActorLookup with CommandHandler with QueryHandler {
   override def persistenceId = self.path.name
 
-  val receiveRecover: Receive = {
+  def receiveRecover: Receive = {
     case _ =>
   }
 
-  implicit val executor: ExecutionContext = context.dispatcher
+  implicit def executor: ExecutionContext = context.dispatcher
 
   /*
   ToDo: Learn more about the different strategies
@@ -31,11 +36,11 @@ abstract class PersistentSupervisorBase extends PersistentActor with ActorLookup
   /*
   ToDo: find a good timeout time
    */
-  val timeoutTime = 400 millisecond;
-  implicit val timeout = Timeout(timeoutTime)
+  def timeoutTime = 400 millisecond;
+  implicit def timeout = Timeout(timeoutTime)
 
   //TODO figure out good interval value for snapshots
-  val snapShotInterval = 1000
+  def snapShotInterval = 1000
 
   val receiveCommand: Receive
 }
