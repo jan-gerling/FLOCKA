@@ -28,6 +28,7 @@ object UserService extends ServiceBase with UserIdManager{
     /*
     Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
     Giving userId -1 is no userId, only for creating new users
+    Inherited from CommandHandler
     */
     def commandHandler(command: MessageTypes.Command, userId: Long): Future[Any] = {
       super.commandHandler(command, getActor(userId), timeoutTime, executor)
@@ -35,6 +36,7 @@ object UserService extends ServiceBase with UserIdManager{
 
     /*
     similar to the command handler
+    Inherited from QueryHandler
     */
     def queryHandler(query: MessageTypes.Query, userId: Long): Future[Any] = {
       super.queryHandler(query, getActor(userId), timeoutTime, executor)
@@ -42,6 +44,7 @@ object UserService extends ServiceBase with UserIdManager{
 
     /*
     Get the actor reference for the supervisor for the given userid.
+    Inherited from ActorLookup
      */
     def getActor(userId: Long): Option[ActorRef] ={
       var supervisorId: Long = -1
@@ -133,7 +136,7 @@ object UserService extends ServiceBase with UserIdManager{
     def route : Route = postCreateUserRoute ~  deleteRemoveUserRoute ~ getFindUserRoute ~ getCreditRoute ~
       postSubtractCreditRoute ~ postAddCreditRoute
 
-    val host = "0.0.0.0"
+    val host = "localhost"
     val port = 9000
     val bindingFuture = Http().bindAndHandle(route, host, port)
 
