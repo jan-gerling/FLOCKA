@@ -7,7 +7,9 @@ object MessageTypes {
   /*
   Every command with a potential change of data has to extend this trait.
    */
-  trait Command
+  trait Command {
+    def objectId: Long
+  }
 
   /*
   This trait is added to all persisted operations, thus whenever an event is received its contents was already done.
@@ -17,5 +19,7 @@ object MessageTypes {
   /*
   Only requests with no change to data are allowed to extend this trait.
    */
-  trait Query
+  trait Query {
+    def objectId: Long
+  }
 }
