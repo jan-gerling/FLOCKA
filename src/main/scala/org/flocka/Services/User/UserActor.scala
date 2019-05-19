@@ -53,7 +53,7 @@ class UserActor() extends PersistentActor{
     state = state.updated(event)
 
   val receiveRecover: Receive = {
-    case evt: MessageTypes.Event                             => updateState(evt)
+    case evt: MessageTypes.Event               => updateState(evt)
     case SnapshotOffer(_, snapshot: UserState) => state = snapshot
   }
 
