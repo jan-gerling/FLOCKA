@@ -6,7 +6,7 @@ import akka.actor.{ActorRef, Props}
 import org.flocka.MessageTypes
 import org.flocka.ServiceBasics.{PersistentSupervisorBase}
 
-/*
+/**
 This Object stores the props to create a UserActorSupervisor.
  */
 object UserActorSupervisor{
@@ -18,6 +18,9 @@ object UserActorSupervisor{
   def props(): Props = Props(new UserActorSupervisor())
 }
 
+/**
+  * Supervisor or guardian for a range of user actors, implementing the PersistentSupervisorBase class.
+  */
 class UserActorSupervisor extends PersistentSupervisorBase with UserIdManager{
   def commandHandler(command: MessageTypes.Command,
                    userId: Long,
