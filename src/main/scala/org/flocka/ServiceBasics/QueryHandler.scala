@@ -8,10 +8,19 @@ import scala.concurrent.{ExecutionContext, Future}
 import akka.pattern.ask
 import akka.pattern.pipe
 
+/**
+Implements a handler for all queries between actors.
+ */
 trait QueryHandler {
-  /*
-   Handles the given command for an actor by sending it with the ask pattern to the target actor.
-   Returns actually a future of type UserCommunication.Event.
+  /**
+   Handles the given query for an actor by sending it with the ask pattern to the target actor.
+  @param query query for an data base objects value
+  @param targetActor the target actor for the given query
+  @param timeoutTime timeout time for this query
+  @param currentExecutor current execution context of the actor
+  @param pipeToActor if the current actor is not supposed to retrieve the result, pipe it to this actor
+  @param postConditions if wanted apply conditions for the results of the given query
+  @return is supposed to be future of type UserCommunication.Event.
   */
   def queryHandler(query: MessageTypes.Query,
                      targetActor: Option[ActorRef],
