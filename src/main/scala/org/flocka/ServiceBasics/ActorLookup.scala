@@ -1,4 +1,4 @@
-package org.flocka.Services.User
+package org.flocka.ServiceBasics
 
 import akka.actor.{ActorContext, ActorRef, ActorRefFactory, Props}
 

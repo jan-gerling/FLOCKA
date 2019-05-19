@@ -1,14 +1,17 @@
 package org.flocka.Services.User
 
 import java.util.UUID.randomUUID
+
 import UserServiceComs._
 import akka.actor.SupervisorStrategy.Stop
 import akka.util.Timeout
+
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor.{ActorRef, OneForOneStrategy, Props}
 import akka.persistence.PersistentActor
 import org.flocka.MessageTypes
+import org.flocka.ServiceBasics.{ActorLookup, CommandHandler, QueryHandler}
 import org.flocka.Services.User.UserActor.UserActorTimeoutException
 
 /*

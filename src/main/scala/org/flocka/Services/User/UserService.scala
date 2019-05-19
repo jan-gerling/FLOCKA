@@ -3,12 +3,13 @@ package org.flocka.Services.User
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route}
+import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import UserServiceComs._
 import akka.util.Timeout
 import akka.actor.ActorRef
 import org.flocka.MessageTypes
+import org.flocka.ServiceBasics.{ActorLookup, CommandHandler, QueryHandler}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}

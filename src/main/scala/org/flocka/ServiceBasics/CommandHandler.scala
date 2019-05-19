@@ -1,13 +1,12 @@
-package org.flocka.Services.User
+package org.flocka.ServiceBasics
 
 import akka.actor.ActorRef
+import akka.util.Timeout
 import org.flocka.MessageTypes
+import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ExecutionContext, Future}
 import akka.pattern.ask
 import akka.pattern.pipe
-import akka.util.Timeout
-import scala.concurrent.duration.{FiniteDuration}
-import scala.concurrent.{ExecutionContext, Future}
-
 trait CommandHandler {
   /*
    Handles the given command for an actor by sending it with the ask pattern to the target actor.
