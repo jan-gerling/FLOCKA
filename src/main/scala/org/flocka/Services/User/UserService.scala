@@ -1,18 +1,45 @@
-package org.flocka.sharding
+package org.flocka.Services.User
 
 import akka.actor.{ActorRef, ActorSystem}
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.MessageTypes
-import org.flocka.sharding.UserServiceComs._
-
+import com.typesafe.config.{Config, ConfigFactory}
+import org.flocka.ServiceBasics.MessageTypes.Request
+import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler}
+import org.flocka.Services.User.UserServiceComs._
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Random, Success}
+
+object UserSharding {
+  def startUserSharding(system: ActorSystem): ActorRef =
+    ClusterSharding(system).start(
+      typeName = shardName,
+      entityProps = UserActor.props(),
+      settings = ClusterShardingSettings(system),
+      extractEntityId = extractEntityId,
+      extractShardId = extractShardId
+    )
+
+  val extractEntityId: ShardRegion.ExtractEntityId = {
+    case request: Request => (request.entityId.toString, request)
+    case _ => throw new IllegalArgumentException()
+  }
+
+  val extractShardId: ShardRegion.ExtractShardId = {
+    case request: Request => (request.entityId % conf.getInt("user.numshards")).toString
+    case _ => throw new IllegalArgumentException()
+  }
+
+  val conf: Config = ConfigFactory.load()
+
+  val shardName: String = "User"
+}
 
 object UserService extends CommandHandler with QueryHandler {
 
