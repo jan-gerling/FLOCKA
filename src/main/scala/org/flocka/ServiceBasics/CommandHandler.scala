@@ -38,10 +38,13 @@ trait CommandHandler {
         }
 
         pipeToActor match {
-          case Some(receivingActor) => actorFuture pipeTo receivingActor
+
+          case Some(receivingActor) =>
+            actorFuture pipeTo receivingActor
           case None => return actorFuture
         }
-      case None => throw new IllegalArgumentException(command.toString)
+      case None =>
+        throw new IllegalArgumentException(command.toString)
       }
   }
 }

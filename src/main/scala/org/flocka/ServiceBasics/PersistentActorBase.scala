@@ -6,7 +6,6 @@ import org.flocka.ServiceBasics.MessageTypes.Event
 import scala.concurrent.duration.FiniteDuration
 import akka.actor._
 import akka.cluster.sharding.ShardRegion.Passivate
-import org.flocka.Services.User.UserState
 
 /**
   * Base for all actor states of persistent actors.
@@ -30,6 +29,9 @@ object PersistentActorBase{
   * For implementation reference see Service.User.UserActor
   */
 abstract class PersistentActorBase extends PersistentActor with QueryHandler {
+  /**
+    * Please don't touch!!!! It works!
+    */
   override def persistenceId = self.path.name
 
   val passivateTimeout: FiniteDuration
@@ -76,7 +78,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   val receiveCommand: Receive = {
     case command: MessageTypes.Command => sendPersistentResponse(buildResponseEvent(command))
 
-    case query: MessageTypes.Query => sendPersistentResponse(buildResponseEvent(query))
+    case query: MessageTypes.Query => sendResponse(buildResponseEvent(query))
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
 
