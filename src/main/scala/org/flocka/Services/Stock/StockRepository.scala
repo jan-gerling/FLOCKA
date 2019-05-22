@@ -4,7 +4,6 @@ import akka.actor.Props
 import akka.persistence.SnapshotOffer
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Stock.StockServiceComs._
-import org.flocka.Services.User.UserRepositoryState
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -44,7 +43,7 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState]) exten
       copy (stockItems += itemId -> stockItems.get(itemId).get.updated(event))
     case AvailabilityDecreased(itemId, amount, true) =>
       copy (stockItems += itemId -> stockItems.get(itemId).get.updated(event))
-    case _ => throw new IllegalArgumentException(event.toString + " is not a valid event for UserActor.")
+    case _ => throw new IllegalArgumentException(event.toString + " is not a valid event for StockActor.")
   }
 }
 
@@ -55,8 +54,8 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState]) exten
 class StockRepository extends PersistentActorBase{
   override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState])
 
-  override val passivateTimeout: FiniteDuration = Configs.conf.getInt("user.passivate-timeout") seconds
-  override val snapShotInterval: Int = Configs.conf.getInt("user.snapshot-interval")
+  override val passivateTimeout: FiniteDuration = Configs.conf.getInt("stock.passivate-timeout") seconds
+  override val snapShotInterval: Int = Configs.conf.getInt("stock.snapshot-interval")
   // Since we have millions of stock items, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
 
