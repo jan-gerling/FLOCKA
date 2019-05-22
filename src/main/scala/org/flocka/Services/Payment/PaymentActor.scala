@@ -1,7 +1,7 @@
 package org.flocka.Services.Payment
 
 import akka.actor._
-import UserServiceComs._
+import PaymentServiceComs._
 import akka.actor.Props
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import org.flocka.MessageTypes
@@ -10,65 +10,60 @@ import org.flocka.Services.User.UserActor.UserActorTimeoutException
 import scala.concurrent.duration._
 
 /*
-Hold the current state of the user here.
-UserId matches the persistenceId and is the unique identifier for user and actor.
+Hold the current state of the Payment here.
+PaymentId matches the persistenceId and is the unique identifier for payment and actor.
 active identifies if the user is still an active user, or needs to be deleted
-credit is the current credit of this user
  */
-case class UserState(userId: Long,
-                     active: Boolean,
-                     credit: Long) {
+case class PaymentState(userId: Long,
+                        orderId: Long,
+                        status: Boolean) {
 
-  def updated(event: MessageTypes.Event): UserState = event match {
-    case UserCreated(userId) =>
-      copy(userId = userId, active = true, 0)
+  def updated(event: MessageTypes.Event): PaymentState = event match {
 
-    case UserDeleted(userId, true) =>
-      copy(userId = userId, active = false, credit = credit)
+    case PaymentPayed(userId, orderId) =>
+      copy(userId = userId, orderId = orderId, status = true)
 
-    case CreditAdded(userId, amount, true) =>
-      copy(userId = userId, active = active, credit = credit + amount)
-
-    case CreditSubtracted(userId, amount, true) =>
-      copy(userId = userId, active = active, credit = credit - amount)
+    case PaymentCanceled(userId, orderId) =>
+      copy(userId = userId, orderId = orderId, status = false)
 
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActor.")
   }
 }
 
-object UserActor{
-  def props(): Props = Props(new UserActor())
+object PaymentActor{
+  def props(): Props = Props(new PaymentActor())
   case class InvalidUserException(userId: String) extends Exception("This user: " + userId + " is not active.")
-  case class UserActorTimeoutException(userId: String) extends Exception(userId)
+  case class InvalidOrderException(orderId: String) extends Exception("This order: " + orderId + " is not active.")
+  case class PaymentActorTimeoutException(orderId: String) extends Exception(orderId)
 }
 
-class UserActor() extends PersistentActor{
+class PaymentActor() extends PersistentActor{
   override def persistenceId = self.path.name
 
-  //ToDo: what is a good timeout time for a useractor?
+  //ToDo: what is a good timeout time for a paymentActor?
   context.setReceiveTimeout(150 seconds)
-  var state = UserState(persistenceId.toLong, false, 0)
+  var state = PaymentState(persistenceId.toLong, -1, false)
 
   def updateState(event: MessageTypes.Event): Unit =
     state = state.updated(event)
 
   val receiveRecover: Receive = {
-    case evt: MessageTypes.Event               => updateState(evt)
-    case SnapshotOffer(_, snapshot: UserState) => state = snapshot
+    case evt: MessageTypes.Event                  => updateState(evt)
+    case SnapshotOffer(_, snapshot: PaymentState) => state = snapshot
   }
 
-  def queryHandler(query: MessageTypes.Query, userId: Long, event: MessageTypes.Event ): Unit = {
+  def queryHandler(query: MessageTypes.Query, orderId: Long, event: MessageTypes.Event ): Unit = {
     //ToDo: Check if we can assume that the message always arrives at the correct user actor
     try {
       if(validateState(query))
         sender() ! event
     } catch {
-      case userException: UserActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
+      case userException: PaymentActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
       case ex: Exception => throw ex
     }
   }
 
-  def commandHandler(command: MessageTypes.Command, userId: Long, event: MessageTypes.Event ): Unit = {
+  def commandHandler(command: MessageTypes.Command, userId: Long, orderId: Long, event: MessageTypes.Event ): Unit = {
     try {
       if(validateState(command)) persist(event) { event =>
         updateState(event)
@@ -82,7 +77,7 @@ class UserActor() extends PersistentActor{
       }
 
     } catch {
-      case userException: UserActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
+      case userException: PaymentActor.InvalidUserException => sender() ! akka.actor.Status.Failure(userException)
       case ex: Exception => throw ex
     }
   }
@@ -91,12 +86,12 @@ class UserActor() extends PersistentActor{
   Validate if the user actor state allows any interaction at the current point
    */
   def validateState(command: MessageTypes.Command): Boolean ={
-    if (command == UserServiceComs.CreateUser() && state.active == false) {
+    if (command == PaymentServiceComs.CreateUser() && state.active == false) {
       return true
     } else if(state.active) {
       return  true
-    } else if (command != UserServiceComs.CreateUser() && state.active == false) {
-      throw new UserActor.InvalidUserException(state.userId.toString)
+    } else if (command != PaymentServiceComs.CreateUser() && state.active == false) {
+      throw new PaymentActor.InvalidUserException(state.orderId.toString)
     }
 
     throw new IllegalArgumentException(command.toString)
