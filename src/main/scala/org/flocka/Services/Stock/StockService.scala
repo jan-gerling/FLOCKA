@@ -2,7 +2,7 @@ package org.flocka.Services.Stock
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.server.Directives.{complete, get, pathEndOrSingleSlash, pathPrefix, post}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 
