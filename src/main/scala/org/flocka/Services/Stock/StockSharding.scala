@@ -5,7 +5,6 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardReg
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes.Request
 import org.flocka.Services.User.IdManager
-import org.flocka.Services.User.UserSharding.conf
 
 /**
   * Contains functions and configuration relating to the sharding of Stock.

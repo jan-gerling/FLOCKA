@@ -1,74 +1,112 @@
 package org.flocka.Services.Stock
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import akka.util.Timeout
+import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler}
+import org.flocka.Services.Stock.StockServiceComs._
+import org.flocka.Services.User.IdManager
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-//TODO maybe extend HttpApp
-object StockService extends App {
+/**
+  * Contains routes for the Rest Stock Service. Method bind is used to start the server.
+  */
+object StockService extends CommandHandler with QueryHandler {
 
-  override def main(args: Array[String]): Unit = {
-    implicit val system: ActorSystem = ActorSystem("Flocka")
-    implicit val executor: ExecutionContext = system.dispatcher
-    implicit val materializer: ActorMaterializer = ActorMaterializer()
+  val randomGenerator: scala.util.Random = scala.util.Random
+  val service = "stock"
+  val timeoutTime: FiniteDuration = 500 milliseconds
+  implicit val timeout: Timeout = Timeout(timeoutTime)
 
-    val service = "stock"
+  /**
+    * Starts the server
+    * @param shardRegion the region behind which the
+    * @param exposedPort the port in which to expose the service
+    * @param executor jeez idk,
+    * @param system the ActorSystem
+    * @return
+    */
+ def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem) : Future[ServerBinding] = {
+
+   /*
+    Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
+    Giving itemId -1 is no itemId, only for creating new stock items
+    */
+   def commandHandler(command: MessageTypes.Command): Future[Any] = {
+     super.commandHandler(command, Option(shardRegion), timeoutTime, executor)
+   }
+
+   /*
+    similar to the command handler
+    */
+   def queryHandler(query: MessageTypes.Query): Future [Any] = {
+     super.queryHandler(query, Option(shardRegion), timeoutTime, executor)
+   }
+
+   val postCreateItemRoute: Route = {
+     pathPrefix(service /  "item" / "create") {
+       post {
+         pathEndOrSingleSlash {
+           onComplete(commandHandler(CreateItem(IdManager.generateId(StockSharding.numShards)))) {
+             case Success(value) => complete(value.toString)
+             case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
+           }
+         }
+       }
+     }
+   }
 
     val getGetItemAvailabilityRoute: Route = {
       pathPrefix(service /  "availability" / LongNumber ) { itemId ⇒
         get{
           pathEndOrSingleSlash {
-            complete("Get Item " + itemId + " Availability")
+            onComplete(queryHandler(GetAvailability(itemId))) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
+            }
           }
         }
       }
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "subtract" / LongNumber / LongNumber ) { ( itemId, number) ⇒
+      pathPrefix(service /  "subtract" / LongNumber / LongNumber ) { ( itemId, amount) ⇒
         post{
           pathEndOrSingleSlash {
-            complete("Decrease Item " + itemId + " Availability By " + number + " Units")
+            onComplete(commandHandler(DecreaseAvailability(itemId, amount))) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
+            }
           }
         }
       }
     }
 
     val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "add" / LongNumber / LongNumber) { ( itemId, number) ⇒
+      pathPrefix(service /  "add" / LongNumber / LongNumber) { ( itemId, amount) ⇒
         post{
           pathEndOrSingleSlash {
-            complete("Decrease Item " + itemId + " Availability By " + number + " Units")
-          }
+            onComplete(commandHandler(IncreaseAvailability(itemId, amount))) {
+              case Success(value) => complete(value.toString)
+              case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
+            }               }
         }
       }
     }
 
-    val postCreateItemRoute: Route = {
-      pathPrefix(service /  "item" / "create") {
-        post {
-          pathEndOrSingleSlash {
-            complete("Created Item ")
-          }
-        }
-      }
-    }
 
-    def route : Route = getGetItemAvailabilityRoute ~  postDecreaseItemAvailabilityRoute ~ postIncreaseItemAvailabilityRoute ~
-      postCreateItemRoute
 
-    val host = "0.0.0.0"
-    val port = 9000
-    val bindingFuture = Http().bindAndHandle(route, host, port)
+    def route : Route = getGetItemAvailabilityRoute ~  postDecreaseItemAvailabilityRoute ~
+      postIncreaseItemAvailabilityRoute ~ postCreateItemRoute
 
-    bindingFuture.onComplete {
-      case Success(serverBinding) => println(s"listening to ${serverBinding.localAddress}")
-      case Failure(error) => println(s"error: ${error.getMessage}")
-    }
+   implicit val materializer = ActorMaterializer()
+   Http().bindAndHandle(route, "0.0.0.0", exposedPort)
   }
 }
