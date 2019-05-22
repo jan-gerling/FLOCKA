@@ -7,12 +7,12 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler}
+import org.flocka.ServiceBasics.{CommandHandler, IdGenerator, MessageTypes, QueryHandler}
 import org.flocka.Services.User.UserServiceComs._
+
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-
 
 /**
   * Contains routes for the Rest User Service. Method bind is used to start the server.
@@ -33,6 +33,8 @@ object UserService extends CommandHandler with QueryHandler {
     * @return
     */
   def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
+    val regionalIdManager: IdGenerator = new IdGenerator()
+
     /*
       Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
       Giving userId -1 is no userId, only for creating new users
@@ -48,15 +50,19 @@ object UserService extends CommandHandler with QueryHandler {
       super.queryHandler(query, Option(shardRegion), timeoutTime, executor)
     }
 
+    def createNewUser(): Route ={
+      //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
+      onComplete(commandHandler(CreateUser(regionalIdManager.generateId(UserSharding.numShards)))) {
+        case Success(value) => complete(value.toString)
+        case Failure(ex) => if(ex.toString.contains("InvalidIdException")){regionalIdManager.increaseEntropy() ;createNewUser()} else complete(s"An error occurred: ${ex.getMessage}")
+      }
+    }
+
     val postCreateUserRoute: Route = {
       pathPrefix(service / "create") {
         post {
           pathEndOrSingleSlash {
-            //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
-            onComplete(commandHandler(CreateUser(IdManager.generateId(UserSharding.numShards)))) {
-              case Success(value) => complete(value.toString)
-              case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
-            }
+            createNewUser()
           }
         }
       }

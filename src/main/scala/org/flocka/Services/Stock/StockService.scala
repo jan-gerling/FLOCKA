@@ -7,9 +7,8 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler}
+import org.flocka.ServiceBasics.{CommandHandler, IdGenerator, IdManager, MessageTypes, QueryHandler}
 import org.flocka.Services.Stock.StockServiceComs._
-import org.flocka.Services.User.IdManager
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -34,6 +33,7 @@ object StockService extends CommandHandler with QueryHandler {
     * @return
     */
  def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem) : Future[ServerBinding] = {
+   val regionalIdManager: IdGenerator = new IdGenerator()
 
    /*
     Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
@@ -54,7 +54,7 @@ object StockService extends CommandHandler with QueryHandler {
      pathPrefix(service /  "item" / "create") {
        post {
          pathEndOrSingleSlash {
-           onComplete(commandHandler(CreateItem(IdManager.generateId(StockSharding.numShards)))) {
+           onComplete(commandHandler(CreateItem(regionalIdManager.generateId(StockSharding.numShards.toInt)))) {
              case Success(value) => complete(value.toString)
              case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
            }

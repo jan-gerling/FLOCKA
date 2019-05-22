@@ -3,8 +3,8 @@ package org.flocka.Services.Stock
 import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.flocka.ServiceBasics.IdManager
 import org.flocka.ServiceBasics.MessageTypes.Request
-import org.flocka.Services.User.IdManager
 
 /**
   * Contains functions and configuration relating to the sharding of Stock.

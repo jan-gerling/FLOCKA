@@ -3,6 +3,7 @@ package org.flocka.Services.User
 import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.flocka.ServiceBasics.IdManager
 import org.flocka.ServiceBasics.MessageTypes.Request
 
 /**
