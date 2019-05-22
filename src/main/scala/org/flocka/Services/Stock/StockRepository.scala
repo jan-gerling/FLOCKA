@@ -2,6 +2,7 @@ package org.flocka.Services.Stock
 
 import akka.actor.Props
 import akka.persistence.SnapshotOffer
+import org.flocka.ServiceBasics.PersistentActorBase.InvalidStockException
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Stock.StockServiceComs._
 
@@ -101,11 +102,11 @@ class StockRepository extends PersistentActorBase{
     request match {
       case CreateItem(itemId) =>
         if (getStockState(itemId).isDefined)
-          throw new Exception("Stock of item itd " + itemId + " Already exists.")
+          throw new InvalidStockException ("Stock of item itd " + itemId + " Already exists.")
         else
           return true
       case DecreaseAvailability(itemId, amount) =>
-        val stockState = getStockState(itemId).getOrElse(throw new Exception("Stock does not exist."))
+        val stockState = getStockState(itemId).getOrElse(throw new InvalidStockException ("Stock does not exist."))
         return stockState.availability >= amount
       case _ => getStockState(request.key).isDefined
     }

@@ -17,7 +17,7 @@ object ShardedStockServiceApp extends App {
     println("==========================\n" + toLog + "\n=============================")
 
   override def main(args: Array[String]): Unit = {
-    Seq("2551", "2552") foreach { port =>
+    Seq("2561", "2562") foreach { port =>
 
       val config = ConfigFactory.parseString("akka.remote.netty.tcp.port=" + port)
         .withFallback(ConfigFactory.load())
@@ -27,16 +27,11 @@ object ShardedStockServiceApp extends App {
 
       //Journal is currently leveldb, it is used to persist events of PersistentActors
       val pathToJournal: ActorPath = ActorPath.fromString("akka.tcp://" + config.getString("clustering.cluster.name") +
-        "@" + config.getString("akka.remote.netty.tcp.hostname") + ":2551/user/store")
-      startupSharedJournal(system, startStore = (port == "2551"), path = pathToJournal)(system.dispatcher)
+        "@" + config.getString("akka.remote.netty.tcp.hostname") + ":2561/user/store")
+      startupSharedJournal(system, startStore = (port == "2561"), path = pathToJournal)(system.dispatcher)
 
       //Start sharding system locally, this will create a ShardingRegion
-      ClusterSharding(system).start(
-        typeName = StockSharding.shardName,
-        entityProps = StockRepository.props,
-        settings = ClusterShardingSettings(system),
-        extractEntityId = StockSharding.extractEntityId,
-        extractShardId = StockSharding.extractShardId)
+      StockSharding.startStockSharding(system)
 
       //Start rest server if on correct port
       attemptStartRest(port, config)
@@ -73,7 +68,7 @@ object ShardedStockServiceApp extends App {
 
 
   def attemptStartRest(port: String, config: Config)(implicit system: ActorSystem): Unit = {
-    if (port == "2551") {
+    if (port == "2561") {
       //Get ActorRef of stock Shard Region
       val stockShard = ClusterSharding(system).shardRegion(StockSharding.shardName)
       //Start rest service
