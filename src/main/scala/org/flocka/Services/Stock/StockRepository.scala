@@ -98,15 +98,16 @@ class StockRepository extends PersistentActorBase{
   }
 
   def validateState(request: MessageTypes.Request): Boolean = {
-    case CreateItem(itemId) =>
-      if (getStockState(itemId).isDefined)
-        throw new Exception("Stock of item itd " + itemId + " Already exists.")
-      else
-        return true
-    case DecreaseAvailability(itemId, amount) =>
-      val stockState = getStockState(itemId).getOrElse(throw new Exception("Stock does not exist."))
-      return stockState.availability >= amount
-    case _ => getStockState(request.key).isDefined
-
+    request match {
+      case CreateItem(itemId) =>
+        if (getStockState(itemId).isDefined)
+          throw new Exception("Stock of item itd " + itemId + " Already exists.")
+        else
+          return true
+      case DecreaseAvailability(itemId, amount) =>
+        val stockState = getStockState(itemId).getOrElse(throw new Exception("Stock does not exist."))
+        return stockState.availability >= amount
+      case _ => getStockState(request.key).isDefined
+    }
   }
 }
