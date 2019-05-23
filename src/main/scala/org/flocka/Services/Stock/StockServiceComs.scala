@@ -1,7 +1,6 @@
 package org.flocka.Services.Stock
 
-import org.flocka.ServiceBasics.MessageTypes
-import org.flocka.Services.User.IdManager
+import org.flocka.ServiceBasics.{IdManager, MessageTypes}
 
 object StockServiceComs {
 

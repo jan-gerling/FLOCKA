@@ -1,8 +1,9 @@
 package org.flocka.ServiceBasics
 
 import akka.actor.{PoisonPill, ReceiveTimeout}
-import akka.persistence.PersistentActor
+import akka.persistence.{PersistentActor, SaveSnapshotSuccess}
 import org.flocka.ServiceBasics.MessageTypes.Event
+
 import scala.concurrent.duration.FiniteDuration
 import akka.actor._
 import akka.cluster.sharding.ShardRegion.Passivate
@@ -82,7 +83,5 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     case query: MessageTypes.Query => sendResponse(buildResponseEvent(query))
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
-
-    case value => throw new IllegalArgumentException(value.toString)
   }
 }

@@ -2,9 +2,9 @@ package org.flocka.Services.User
 
 import akka.actor.{Props, _}
 import akka.persistence.SnapshotOffer
-import org.flocka.ServiceBasics
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
+import org.flocka.ServiceBasics.IdManager.InvalidIdException
 import org.flocka.Services.User.UserServiceComs._
 
 import scala.collection.mutable
@@ -45,7 +45,6 @@ case class UserState(userId: Long,
 }
 
 case class UserRepositoryState(users: mutable.Map[Long, UserState]) extends PersistentActorState {
-
   def updated(event: MessageTypes.Event): UserRepositoryState = event match {
     case UserCreated(userId) =>
       copy(users += userId -> new UserState(-1, false, -1).updated(event))
@@ -115,8 +114,10 @@ class UserRepository extends PersistentActorBase {
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
       case CreateUser(userId) =>
-        if (getUserState(userId).isDefined)
-          throw new Exception("User of user id " + userId + " already exists.")
+        if (getUserState(userId).isDefined) {
+          sender() ! akka.actor.Status.Failure(InvalidIdException(userId.toString))
+          return false
+        }
         else
           return true
       case SubtractCredit(userId, credit) =>

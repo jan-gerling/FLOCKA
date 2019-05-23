@@ -1,6 +1,6 @@
 package org.flocka.Services.User
 
-import org.flocka.ServiceBasics.MessageTypes
+import org.flocka.ServiceBasics.{IdManager, MessageTypes}
 
 /**
   * Define all allowed user service communications here. They have to comply to the CQRS scheme.
