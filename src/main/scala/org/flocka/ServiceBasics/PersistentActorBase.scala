@@ -20,6 +20,7 @@ trait PersistentActorState {
   */
 object PersistentActorBase{
   case class InvalidUserException(userId: String) extends Exception("This user: " + userId + " is not active.")
+  case class InvalidStockException(itemId: String) extends Exception("This stock: " + itemId + " is not defined.")
 }
 
 /**
