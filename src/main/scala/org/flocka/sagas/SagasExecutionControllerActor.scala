@@ -62,7 +62,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     state = state.updated(event)
 
   val receiveRecover: Receive = {
-    case evt: MessageTypes.Event => updateState(evt)
+    case evt: MessageTypes.Event => {println(evt); updateState(evt)}
     case RecoveryCompleted =>
       doStep()
     case SnapshotOffer(_, snapshot: SECState) => state = snapshot
@@ -100,13 +100,19 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   override def buildResponseEvent(request: MessageTypes.Request): Event = return SagaCompleted()
 
   override val receiveCommand: Receive = {
-    case command: MessageTypes.Command => sendPersistentResponse(buildResponseEvent(command, sender()))
+    case command: MessageTypes.Command => {println(command); sendPersistentResponse(buildResponseEvent(command, sender()))}
 
     case query: MessageTypes.Query => sendResponse(buildResponseEvent(query))
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
 
     case value => throw new IllegalArgumentException(value.toString)
+  }
+
+  def persistForSelf(evt: Event): Unit = {
+    persist(evt) { event =>
+      updateState(event)
+    }
   }
 
   def doForwardOperation(op: SagaOperation, currIndex: Int): Unit = {
@@ -123,11 +129,11 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
             if (currIndex == getSECState().saga.dagOfOps.length - 1) { // If this was the last step
               //We are done, successfully
               if(!getSECState().finished) {
-                self ! SagaCompleted
-                getSECState().requester ! SagaCompleted
+                persistForSelf(SagaCompleted())
+                getSECState().requester ! SagaCompleted()
               }
             } else {
-              self ! StepCompleted(currIndex + 1)
+              persistForSelf(StepCompleted(currIndex + 1))
               self ! ExecuteNextStep(getSECState().entityId)
             }
           }
@@ -137,7 +143,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
           while(!getSECState().saga.dagOfOps(currIndex).forall(op => op.completed)) //wait for others to complete
 
           //Need to begin abort
-          self ! RollbackStarted
+          persistForSelf(RollbackStarted())
         }
       case Failure(exception) =>
         if (exception.toString.contains("timeout")) {
@@ -155,10 +161,10 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
         op.invertCompleted = true
         if (getSECState().saga.dagOfOps(currIndex).forall(op => (op.completed == true && op.success == false && op.invertCompleted == false) || op.invertCompleted == true)){
           if(currIndex == 0) {
-            self ! SagaAborted
+            persistForSelf(SagaAborted())
             getSECState().requester ! SagaAborted
           }else {
-            self ! StepCompleted(currIndex - 1)
+            persistForSelf(StepCompleted(currIndex - 1))
             self ! ExecuteNextStep(getSECState().entityId)
           }
         }
@@ -176,6 +182,13 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   def doStep(): Unit = {
     val currIndex = getSECState().concurrentOperationsIndex
     val opsAtIndex = getSECState().saga.dagOfOps(currIndex)
+    if(( opsAtIndex.length == 0 || opsAtIndex.forall(op => op.completed)) && currIndex == getSECState().saga.dagOfOps.length -1 ) {
+      persistForSelf(SagaCompleted())
+      println("REQUESTER:" + getSECState().requester)
+      println("ME: " + persistenceId)
+      getSECState().requester ! SagaCompleted
+    }
+
     if (getSECState().state == SagasExecutionControllerActor.STATE_GO) {
       for (op <- opsAtIndex)
         if (!op.completed)

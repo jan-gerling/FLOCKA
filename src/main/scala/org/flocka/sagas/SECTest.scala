@@ -6,6 +6,7 @@ import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStor
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import akka.pattern.ask
+import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.Services.User.IdManager
 import org.flocka.sagas.SagaExecutionControllerComs.RequestExecution
 
@@ -41,6 +42,7 @@ object SECTest extends App {
         system.terminate()
     }
   }
+
 
   override def main(args: Array[String]): Unit = {
     Seq("2551", "2552") foreach { port =>
