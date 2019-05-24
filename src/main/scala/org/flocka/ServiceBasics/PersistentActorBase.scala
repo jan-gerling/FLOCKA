@@ -84,4 +84,6 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
 
     case value => throw new IllegalArgumentException(value.toString)
   }
+
+  def getReceiveCommand: Receive = return receiveCommand
 }
