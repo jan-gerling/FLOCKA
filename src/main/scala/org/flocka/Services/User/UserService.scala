@@ -108,10 +108,10 @@ object UserService extends CommandHandler with QueryHandler {
     }
 
     val postSubtractCreditRoute: Route = {
-      pathPrefix(service / "credit" / "subtract" / LongNumber / LongNumber) { (userId, amount) ⇒
+      pathPrefix(service / "credit" / "subtract" / LongNumber / LongNumber / LongNumber.?) { (userId, amount, operationId) ⇒
         post {
           pathEndOrSingleSlash {
-            onComplete(commandHandler(SubtractCredit(userId, amount))) {
+            onComplete(commandHandler(SubtractCredit(userId, amount, operationId.getOrElse{-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
@@ -121,10 +121,10 @@ object UserService extends CommandHandler with QueryHandler {
     }
 
     val postAddCreditRoute: Route = {
-      pathPrefix(service / "credit" / "add" / LongNumber / LongNumber) { (userId, amount) ⇒
+      pathPrefix(service / "credit" / "add" / LongNumber / LongNumber / LongNumber.?) { (userId, amount, operationId) ⇒
         post {
           pathEndOrSingleSlash {
-            onComplete(commandHandler(AddCredit(userId, amount))) {
+            onComplete(commandHandler(AddCredit(userId, amount, operationId.getOrElse{-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }

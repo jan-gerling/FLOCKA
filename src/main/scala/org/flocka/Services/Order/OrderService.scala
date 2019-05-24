@@ -100,10 +100,10 @@ object OrderService extends CommandHandler with QueryHandler {
     }
 
     val postAddItemRoute: Route = {
-      pathPrefix(service / "item" / "add" / LongNumber / LongNumber) { (orderId, itemId) ⇒
+      pathPrefix(service / "item" / "add" / LongNumber / LongNumber / LongNumber.?) { (orderId, itemId, operationId) ⇒
         post {
           pathEndOrSingleSlash {
-            onComplete(commandHandler(AddItem(orderId, itemId))) {
+            onComplete(commandHandler(AddItem(orderId, itemId, operationId.getOrElse{-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
@@ -113,10 +113,10 @@ object OrderService extends CommandHandler with QueryHandler {
     }
 
     val postRemoveItemRoute: Route = {
-      pathPrefix(service / "item" / "remove" / LongNumber / LongNumber) { (orderId, itemId) ⇒
+      pathPrefix(service / "item" / "remove" / LongNumber / LongNumber / LongNumber.?) { (orderId, itemId, operationId) ⇒
         post {
           pathEndOrSingleSlash {
-            onComplete(commandHandler(RemoveItem(orderId, itemId))) {
+            onComplete(commandHandler(RemoveItem(orderId, itemId, operationId.getOrElse{-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
