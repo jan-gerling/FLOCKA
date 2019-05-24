@@ -54,6 +54,11 @@ case class UserRepositoryState(users: mutable.Map[Long, UserState]) extends Pers
       copy(users += userId -> users.get(userId).get.updated(event))
     case CreditSubtracted(userId, amount, true) =>
       copy(users += userId -> users.get(userId).get.updated(event))
+
+    /**
+    Ignore these events, they have no state changes
+      */
+    case CreditSubtracted(_, _, false) => this
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActor.")
   }
 }
@@ -63,6 +68,8 @@ case class UserRepositoryState(users: mutable.Map[Long, UserState]) extends Pers
   * All valid commands/ queries for users are resolved here and then send back to the requesting actor (supposed to be UserService via UserActorSupervisor).
   */
 class UserRepository extends PersistentActorBase {
+  override def postRestart(reason: Throwable): Unit = super.postRestart(reason)
+
   override var state: PersistentActorState = new UserRepositoryState(mutable.Map.empty[Long, UserState])
 
   val passivateTimeout: FiniteDuration = Configs.conf.getInt("user.passivate-timeout") seconds
@@ -101,7 +108,11 @@ class UserRepository extends PersistentActorBase {
 
       case AddCredit(userId, amount) => return CreditAdded(userId, amount, true)
 
-      case SubtractCredit(userId, amount) => return CreditSubtracted(userId, amount, true)
+      case SubtractCredit(userId, amount) =>
+        val userState = getUserState(userId).getOrElse(throw new Exception("User does not exist."))
+        if (!userState.active)
+          throw new Exception("User does not exist.")
+        CreditSubtracted(userId, amount, userState.credit >= amount)
 
       case FindUser(userId) => return UserFound(userId, Set(userId, getUserState(userId).get.credit))
 
@@ -120,12 +131,7 @@ class UserRepository extends PersistentActorBase {
         }
         else
           return true
-      case SubtractCredit(userId, credit) =>
-        val userState = getUserState(userId).getOrElse(throw new Exception("User does not exist."))
-        if (!userState.active)
-          throw new Exception("User does not exist.")
-        return userState.credit >= credit
-      case _ => return getUserState(request.key).getOrElse(throw new Exception("User does not exist.")).active
+      case _ => return getUserState(request.key).getOrElse(return false).active
     }
   }
 }
