@@ -2,11 +2,9 @@ package org.flocka.ServiceBasics
 
 import akka.actor.ActorRef
 import akka.util.Timeout
-import org.flocka.MessageTypes
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
-import akka.pattern.ask
-import akka.pattern.pipe
+import akka.pattern.{ask, pipe}
 
 /**
 Implements a handler for all queries between actors.
