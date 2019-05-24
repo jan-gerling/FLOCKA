@@ -49,3 +49,15 @@ Some sbt commands:
 
 Works similarly to Maven in the sense that targets will execute previous targets (e.g. test will compile if needed)
 
+## Port scheme ##
+REST Endpoint
+Users: 8080
+Stock: 8081
+Order: 8082
+Payment: 8083
+
+Cluster seed nodes
+Users: 2551
+Stock: 2561
+Order: 2571
+Payment: 2581
