@@ -34,5 +34,5 @@ object PaymentServiceComs{
     val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
-  final case class PaymentStatusFound(orderId: Long, paymentDetails: Set[Long]) extends MessageTypes.Event
+  final case class PaymentStatusFound(orderId: Long, paymentDetails: Boolean) extends MessageTypes.Event
 }
