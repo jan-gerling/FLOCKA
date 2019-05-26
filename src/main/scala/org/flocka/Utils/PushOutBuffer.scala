@@ -66,11 +66,11 @@ case class PushOutHashmapQueueBuffer[K, T](capacity: Int) {
                 return this
         }
 
-        def pop(key: K): T = {
-                return popOption(key).getOrElse(throw new NoSuchElementException)
+        def get(key: K): T = {
+                return getOption(key).getOrElse(throw new NoSuchElementException)
         }
 
-        def popOption(key: K): Option[T] = {
+        def getOption(key: K): Option[T] = {
                 return map.get(key)
         }
 
