@@ -140,9 +140,7 @@ class OrderRepository extends PersistentActorBase {
         else
         //ToDO: do we want to verify the userId?
           return true
-      case _ =>
-        println(getOrderState(request.key).getOrElse(return false).active)
-        return getOrderState(request.key).getOrElse(return false).active
+      case _ => return getOrderState(request.key).getOrElse(return false).active
     }
   }
 }

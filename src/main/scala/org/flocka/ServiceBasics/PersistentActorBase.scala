@@ -67,7 +67,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   }
 
   protected def respond(request: MessageTypes.Request): Unit = {
-    if (validateState(request) == false) {
+    if (!validateState(request)) {
       sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidOrderException(request.key.toString))
     } else {
       request match {
