@@ -2,16 +2,19 @@ package org.flocka.sagas
 
 import akka.actor.{ActorIdentity, ActorPath, ActorSystem, Identify, Props}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.http.scaladsl.model.HttpResponse
 import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStore}
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import akka.pattern.ask
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.Services.User.IdManager
-import org.flocka.sagas.SagaExecutionControllerComs.RequestExecution
+import org.flocka.Services.User.{IdManager, MockLoadbalancerService, UserService, UserSharding}
+import org.flocka.ShardedUserServiceApp.logImportant
+import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 
 object SECTest extends App {
@@ -70,14 +73,46 @@ object SECTest extends App {
       //sleep needed for proper boot of "cluster"
       Thread.sleep(5000)
       if(port == "2552"){
+        attemptStartRest()
+        Thread.sleep(2000)
+        logImportant("Sending saga to shardRegion")
         val testSaga: Saga = new Saga()
+
+        val payPostCondition = (x : HttpResponse) => x.entity.toString.contains("pays")
+        val decStockPostCondition = (x : HttpResponse) => x.entity.toString.contains("decreased")
+        val so1: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
+        val so2: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
+        val so3: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
+
+        val so4: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
+        val so5: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
+
+        testSaga.addConcurrentOperation(so1)
+        testSaga.addConcurrentOperation(so2)
+        testSaga.addConcurrentOperation(so3)
+
+        testSaga.addSequentialOperation(so4)
+        testSaga.addConcurrentOperation(so5)
+
+        val timeoutTime: FiniteDuration = 500 millisecond
+        implicit val timeout: Timeout = Timeout(timeoutTime)
+        implicit val executor: ExecutionContext = system.dispatcher
+
         val secShard = ClusterSharding(system).shardRegion(SECSharding.shardName)
-        secShard ! RequestExecution(IdManager.generateId(100), testSaga)
+        val id : Long = IdManager.generateId(100)
+        secShard ! LoadSaga(id, testSaga)
+         secShard ! Execute(id)
+
       }
     }
 
 
 
   }
-
+  def attemptStartRest()(implicit system: ActorSystem): Unit = {
+      //Start rest service
+      MockLoadbalancerService.bind( 8080, system.dispatcher).onComplete(
+        Success => logImportant("Started server!")
+      )(system.dispatcher)
+  }
 }
