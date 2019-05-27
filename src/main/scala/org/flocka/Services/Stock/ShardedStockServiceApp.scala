@@ -1,11 +1,10 @@
 package org.flocka.Services.Stock
 
 import akka.actor.{ActorIdentity, ActorPath, ActorSystem, Identify, Props}
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.cluster.sharding.{ClusterSharding}
 import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStore}
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
-import org.flocka.Services.Stock.{StockRepository, StockService, StockSharding}
 import akka.pattern.ask
 
 import scala.concurrent.ExecutionContext

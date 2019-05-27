@@ -7,7 +7,6 @@ import org.flocka.ServiceBasics.PersistentActorBase.InvalidStockException
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Stock.StockServiceComs._
 import org.flocka.Utils.PushOutHashmapQueueBuffer
-
 import scala.collection.mutable
 import scala.concurrent.duration._
 
@@ -86,10 +85,6 @@ class StockRepository extends PersistentActorBase{
     getStockRepository().stockItems.get(itemId)
 
   override def buildResponseEvent(request: MessageTypes.Request): MessageTypes.Event = {
-    if (validateState(request) == false) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidStockException(request.key.toString))
-    }
-
     request match {
       case CreateItem(itemId) =>
         return ItemCreated(itemId)
