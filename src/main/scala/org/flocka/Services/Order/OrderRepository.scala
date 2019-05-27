@@ -6,6 +6,8 @@ import org.flocka.ServiceBasics.IdManager.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
+import org.flocka.Utils.PushOutHashmapQueueBuffer
+
 import scala.collection.mutable
 import scala.concurrent.duration._
 
@@ -35,9 +37,9 @@ case class OrderState(orderId: Long,
       copy(orderId = orderId, userId = userId, paymentStatus = false, mutable.ListBuffer.empty[Long], active = true)
     case OrderDeleted(orderId, true) =>
       copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, mutable.ListBuffer.empty[Long], active = false)
-    case ItemAdded(orderId, itemId, true) =>
+    case ItemAdded(orderId, itemId, true, operationId) =>
       copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items += itemId, active = active)
-    case ItemRemoved(orderId, itemId, true) =>
+    case ItemRemoved(orderId, itemId, true, operationId) =>
       copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items -= itemId, active = active)
     case OrderCheckedOut(orderId, true) =>
       copy(orderId = orderId, userId = userId, paymentStatus = true, items = items, active = active)
@@ -48,16 +50,20 @@ case class OrderState(orderId: Long,
 /**
   * Holds all orders
   */
-case class OrderRepositoryState(orders: mutable.Map[Long, OrderState]) extends PersistentActorState {
+case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
+  override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = currentOperations
+
   def updated(event: MessageTypes.Event): OrderRepositoryState = event match {
     case OrderCreated(orderId, userId) =>
       copy(orders += orderId -> new OrderState(-1, -1, false, mutable.ListBuffer.empty[Long], false).updated(event))
     case OrderDeleted(orderId, true) =>
       orders.get(orderId).get.updated(event)
       copy(orders -= orderId)
-    case ItemAdded(orderId, itemId, true) =>
+    case ItemAdded(orderId, itemId, true, operationId) =>
+      doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
-    case ItemRemoved(orderId, itemId, true) =>
+    case ItemRemoved(orderId, itemId, true, operationId) =>
+      doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
     case OrderCheckedOut(orderId, true) =>
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
@@ -65,7 +71,7 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState]) extends P
       /**
       Ignore these events, they have no state changes
        */
-    case ItemRemoved(_ ,_ , false) | ItemAdded(_ ,_ , false) | OrderCheckedOut(_ , false) => this
+    case ItemRemoved(_ ,_ , false, _) | ItemAdded(_ ,_ , false, _) | OrderCheckedOut(_ , false) => this
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for OrderActor.")
   }
 }
@@ -75,7 +81,7 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState]) extends P
   * All valid commands/ queries for orders are resolved here and then send back to the requesting actor
   */
 class OrderRepository extends PersistentActorBase {
-  override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState])
+  override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
   val passivateTimeout: FiniteDuration = Configs.conf.getInt("user.passivate-timeout") seconds
   val snapShotInterval: Int = Configs.conf.getInt("user.snapshot-interval")
@@ -92,7 +98,7 @@ class OrderRepository extends PersistentActorBase {
 
   def getOrderRepository(): OrderRepositoryState = {
     state match {
-      case state@ OrderRepositoryState(orders) => return state
+      case state@ OrderRepositoryState(_ , _) => return state
       case state => throw new Exception("Invalid OrderRepository state type for order-repository: " + persistenceId + ". A state ActorState.OrderRepositoryState type was expected, but " + state.getClass.toString + " was found.")
     }
   }
@@ -107,15 +113,15 @@ class OrderRepository extends PersistentActorBase {
 
       case DeleteOrder(orderId) => return OrderDeleted(orderId, true)
 
-      case AddItem(orderId, itemId) =>
+      case AddItem(orderId, itemId, operationId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
-        return ItemAdded(orderId, itemId, success)
+        return ItemAdded(orderId, itemId, success, operationId)
 
-      case RemoveItem(orderId, itemId) =>
+      case RemoveItem(orderId, itemId, operationId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus && orderState.items.contains(itemId)
-        return ItemRemoved(orderId, itemId, success)
+        return ItemRemoved(orderId, itemId, success, operationId)
 
       case FindOrder(orderId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
