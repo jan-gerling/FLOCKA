@@ -6,7 +6,6 @@ import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.ServiceBasics.IdManager.InvalidIdException
 import org.flocka.Services.User.UserServiceComs._
-
 import scala.collection.mutable
 import scala.concurrent.duration._
 
@@ -97,10 +96,6 @@ class UserRepository extends PersistentActorBase {
   }
 
   def buildResponseEvent(request: MessageTypes.Request): Event = {
-    if (validateState(request) == false) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidUserException(request.key.toString))
-    }
-
     request match {
       case CreateUser(userId) => return UserCreated(userId.toLong)
 
@@ -109,9 +104,9 @@ class UserRepository extends PersistentActorBase {
       case AddCredit(userId, amount) => return CreditAdded(userId, amount, true)
 
       case SubtractCredit(userId, amount) =>
-        val userState = getUserState(userId).getOrElse(throw new Exception("User does not exist."))
+        val userState = getUserState(userId).getOrElse(throw new InvalidIdException("User does not exist."))
         if (!userState.active)
-          throw new Exception("User does not exist.")
+          throw new InvalidIdException("User does not exist.")
         CreditSubtracted(userId, amount, userState.credit >= amount)
 
       case FindUser(userId) => return UserFound(userId, Set(userId, getUserState(userId).get.credit))
