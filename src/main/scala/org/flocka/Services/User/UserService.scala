@@ -81,19 +81,6 @@ object UserService extends CommandHandler with QueryHandler {
       }
     }
 
-    val getFindUserRoute: Route = {
-      pathPrefix(service / "find" / LongNumber) { userId ⇒
-        get {
-          pathEndOrSingleSlash {
-            onComplete(queryHandler(FindUser(userId))) {
-              case Success(value) => complete(value.toString)
-              case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
-            }
-          }
-        }
-      }
-    }
-
     val getCreditRoute: Route = {
       pathPrefix(service / "credit" / LongNumber) { userId ⇒
         get {
@@ -133,7 +120,7 @@ object UserService extends CommandHandler with QueryHandler {
       }
     }
 
-    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getFindUserRoute ~ getCreditRoute ~
+    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~
       postSubtractCreditRoute ~ postAddCreditRoute
 
     implicit val materializer = ActorMaterializer()

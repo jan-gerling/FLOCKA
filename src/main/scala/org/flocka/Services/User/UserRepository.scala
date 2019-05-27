@@ -117,8 +117,6 @@ class UserRepository extends PersistentActorBase {
           throw new Exception("User does not exist.")
         CreditSubtracted(userId, amount, userState.credit >= amount, operationId)
 
-      case FindUser(userId) => return UserFound(userId, Set(userId, getUserState(userId).get.credit))
-
       case GetCredit(userId) => return CreditGot(userId, getUserState(userId).get.credit)
 
       case _ => throw new IllegalArgumentException(request.toString)
