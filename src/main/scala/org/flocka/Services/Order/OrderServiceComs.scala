@@ -12,7 +12,7 @@ object OrderServiceComs{
     POST - creates an order for the given user, and returns an order_id
     */
   final case class CreateOrder(orderId: Long, userId: Long) extends MessageTypes.Command{
-    val entityId: Long = IdManager.extractRepositoryId(orderId)
+    override val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
   final case class OrderCreated(orderId: Long, userId: Long) extends MessageTypes.Event
@@ -23,7 +23,7 @@ object OrderServiceComs{
     return success/failure
     */
   final case class DeleteOrder(orderId: Long) extends MessageTypes.Command{
-    val entityId: Long = IdManager.extractRepositoryId(orderId)
+    override val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
   final case class OrderDeleted(orderId: Long, success: Boolean) extends MessageTypes.Event
@@ -33,7 +33,7 @@ object OrderServiceComs{
     GET - retrieves the information of an order (payment status, items included and user id)
     */
   final case class FindOrder(orderId: Long) extends MessageTypes.Query{
-    val entityId: Long = IdManager.extractRepositoryId(orderId)
+    override val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
   final case class OrderFound(orderId: Long,userId: Long, paymentStatus: Boolean, items: List[Long]) extends MessageTypes.Event
@@ -43,22 +43,28 @@ object OrderServiceComs{
     POST - adds a given item in the order given
     Returns success or failure, depending on the payment status.
   */
-  final case class AddItem(orderId: Long, itemId: Long) extends MessageTypes.Command{
-    val entityId: Long = IdManager.extractRepositoryId(orderId)
+  final case class AddItem(orderId: Long, itemId: Long, operation: Long) extends MessageTypes.Command {
+    override val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
+    override val operationId: Long = operation
   }
-  final case class ItemAdded(orderId: Long, itemId: Long, success: Boolean) extends MessageTypes.Event
+  final case class ItemAdded(orderId: Long, itemId: Long, success: Boolean, operation: Long) extends MessageTypes.Event{
+    override val operationId: Long = operation
+  }
 
   /**
     /orders/removeItem/{order_id}/{item_id}
     DELETE - removes the given item from the given order
     Returns success or failure, depending on the payment status.
   */
-  final case class RemoveItem(orderId: Long, itemId: Long) extends MessageTypes.Command{
-    val entityId: Long = IdManager.extractRepositoryId(orderId)
+  final case class RemoveItem(orderId: Long, itemId: Long, operation: Long) extends MessageTypes.Command {
+    override val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
+    override val operationId: Long = operation
   }
-  final case class ItemRemoved(orderId: Long, itemId: Long, success: Boolean) extends MessageTypes.Event
+  final case class ItemRemoved(orderId: Long, itemId: Long, success: Boolean, operation: Long) extends MessageTypes.Event{
+    override val operationId: Long = operation
+  }
 
   /**
     /orders/checkout/{order_id}
@@ -66,7 +72,7 @@ object OrderServiceComs{
     return a status success or failure
   */
   final case class CkeckoutOrder(orderId: Long) extends MessageTypes.Command{
-    val entityId: Long = IdManager.extractRepositoryId(orderId)
+    override val entityId: Long = IdManager.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
   final case class OrderCheckedOut(orderId: Long, success: Boolean) extends MessageTypes.Event

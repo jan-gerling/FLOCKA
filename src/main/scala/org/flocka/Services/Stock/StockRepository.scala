@@ -2,9 +2,11 @@ package org.flocka.Services.Stock
 
 import akka.actor.Props
 import akka.persistence.SnapshotOffer
+import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.PersistentActorBase.InvalidStockException
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Stock.StockServiceComs._
+import org.flocka.Utils.PushOutHashmapQueueBuffer
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -28,21 +30,25 @@ case class StockState(itemId: Long,
   def updated(event: MessageTypes.Event) : StockState = event match {
     case ItemCreated(itemId) =>
       copy(itemId = itemId, availability = 0)
-    case AvailabilityIncreased(itemId, amount, true) =>
+    case AvailabilityIncreased(itemId, amount, true, _) =>
       copy(itemId = itemId, availability = availability + amount)
-    case AvailabilityDecreased(itemId, amount, true) =>
+    case AvailabilityDecreased(itemId, amount, true, _) =>
       copy(itemId = itemId, availability = availability - amount)
     case _ => throw new IllegalArgumentException(event.toString + " is not a valid event for the StockActor.")
   }
 }
 
-case class StockRepositoryState(stockItems: mutable.Map[Long, StockState]) extends PersistentActorState {
+case class StockRepositoryState(stockItems: mutable.Map[Long, StockState], currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
+  override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = currentOperations
+
   override def updated(event: MessageTypes.Event): StockRepositoryState = event match {
     case ItemCreated(itemId) =>
       copy(stockItems += itemId -> new StockState(-1, -1).updated(event))
-    case AvailabilityIncreased(itemId, amount, true) =>
+    case AvailabilityIncreased(itemId, _, true, operationId) =>
+      doneOperations.push(operationId, event)
       copy (stockItems += itemId -> stockItems.get(itemId).get.updated(event))
-    case AvailabilityDecreased(itemId, amount, true) =>
+    case AvailabilityDecreased(itemId, _, true, operationId) =>
+      doneOperations.push(operationId, event)
       copy (stockItems += itemId -> stockItems.get(itemId).get.updated(event))
     case _ => throw new IllegalArgumentException(event.toString + " is not a valid event for StockActor.")
   }
@@ -53,7 +59,7 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState]) exten
   * All valid commands / queries for stock items are resolved here and then sent back to the requesitng actor (supposed to be StockService via StockActorSupervisor
   */
 class StockRepository extends PersistentActorBase{
-  override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState])
+  override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
   override val passivateTimeout: FiniteDuration = Configs.conf.getInt("stock.passivate-timeout") seconds
   override val snapShotInterval: Int = Configs.conf.getInt("stock.snapshot-interval")
@@ -70,7 +76,7 @@ class StockRepository extends PersistentActorBase{
 
   def getStockRepository(): StockRepositoryState = {
     state match {
-      case state@StockRepositoryState(stockItems) => state
+      case state@StockRepositoryState(_, _) => state
       case state => throw new Exception("Invalid stock-repository state type for stock-repository: " + persistenceId +
         ".A state ActorState.StockRepository type was expected, but " + state.toString + " was found.")
     }
@@ -87,10 +93,10 @@ class StockRepository extends PersistentActorBase{
     request match {
       case CreateItem(itemId) =>
         return ItemCreated(itemId)
-      case IncreaseAvailability(itemId, amount) =>
-        return AvailabilityIncreased(itemId, amount, true)
-      case DecreaseAvailability(itemId, amount) =>
-        return AvailabilityDecreased(itemId, amount, true)
+      case IncreaseAvailability(itemId, amount, operationId) =>
+        return AvailabilityIncreased(itemId, amount, true, operationId)
+      case DecreaseAvailability(itemId, amount, operationId) =>
+        return AvailabilityDecreased(itemId, amount, true, operationId)
       case GetAvailability(itemId) =>
         return AvailabilityGot(itemId, getStockState(itemId).get.availability)
       case _ =>
@@ -105,7 +111,7 @@ class StockRepository extends PersistentActorBase{
           throw new InvalidStockException ("Stock of item itd " + itemId + " Already exists.")
         else
           return true
-      case DecreaseAvailability(itemId, amount) =>
+      case DecreaseAvailability(itemId, amount, _) =>
         val stockState = getStockState(itemId).getOrElse(throw new InvalidStockException ("Stock does not exist."))
         return stockState.availability >= amount
       case _ => getStockState(request.key).isDefined

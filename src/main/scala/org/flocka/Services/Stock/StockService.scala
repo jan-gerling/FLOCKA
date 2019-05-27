@@ -77,10 +77,10 @@ object StockService extends CommandHandler with QueryHandler {
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "subtract" / LongNumber / LongNumber ) { ( itemId, amount) ⇒
-        post{
+      pathPrefix(service /  "subtract" / LongNumber / LongNumber / LongNumber.?) { ( itemId, amount, operationId) ⇒
+        post {
           pathEndOrSingleSlash {
-            onComplete(commandHandler(DecreaseAvailability(itemId, amount))) {
+            onComplete(commandHandler(DecreaseAvailability(itemId, amount, operationId.getOrElse {-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
             }
@@ -90,13 +90,14 @@ object StockService extends CommandHandler with QueryHandler {
     }
 
     val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "add" / LongNumber / LongNumber) { ( itemId, amount) ⇒
+      pathPrefix(service /  "add" / LongNumber / LongNumber / LongNumber.?) { ( itemId, amount, operationId) ⇒
         post{
           pathEndOrSingleSlash {
-            onComplete(commandHandler(IncreaseAvailability(itemId, amount))) {
+            onComplete(commandHandler(IncreaseAvailability(itemId, amount, operationId.getOrElse{-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
-            }               }
+            }
+          }
         }
       }
     }
