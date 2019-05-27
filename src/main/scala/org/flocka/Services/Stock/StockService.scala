@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.ServiceBasics.{CommandHandler, IdGenerator, IdManager, MessageTypes, QueryHandler}
+import org.flocka.ServiceBasics._
 import org.flocka.Services.Stock.StockServiceComs._
 
 import scala.concurrent.duration._
@@ -17,7 +17,7 @@ import scala.util.{Failure, Success}
 /**
   * Contains routes for the Rest Stock Service. Method bind is used to start the server.
   */
-object StockService extends CommandHandler with QueryHandler {
+object StockService extends ServiceBase {
 
   val randomGenerator: scala.util.Random = scala.util.Random
   val service = "stock"

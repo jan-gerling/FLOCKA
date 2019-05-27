@@ -7,8 +7,9 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.ServiceBasics.{CommandHandler, IdGenerator, MessageTypes, QueryHandler}
+import org.flocka.ServiceBasics._
 import org.flocka.Services.Order.OrderServiceComs._
+
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -16,7 +17,7 @@ import scala.util.{Failure, Success}
 /**
   * Contains routes for the Rest Order Service. Method bind is used to start the service.
   */
-object OrderService extends CommandHandler with QueryHandler {
+object OrderService extends ServiceBase {
 
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "orders"

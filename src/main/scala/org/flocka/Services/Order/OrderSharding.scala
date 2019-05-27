@@ -1,22 +1,14 @@
 package org.flocka.Services.Order
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
-import com.typesafe.config.{ConfigFactory}
-import org.flocka.ServiceBasics.IdManager
-import org.flocka.ServiceBasics.MessageTypes.Request
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import org.flocka.ServiceBasics.{ShardingBase}
 
 /**
-  * Contains functions and configuration relating to the sharding of Order.
-  *
-  * To create a new Sharded service an equivalent of this object must be created.
-  * Start by changing the entityProps parameter of ClusterSharding.start().
-  * We recommend sharding by repository, otherwise, you will have to define your own extractShardId and extractEntityId
-  *
-  * Don't forget to configure the number of shards in application.conf
+  * Don't forget to configure the number of shards in order-service.conf
   */
-object OrderSharding {
-  def startOrderSharding(system: ActorSystem): ActorRef =
+object OrderSharding extends ShardingBase("Order", "order-service.conf"){
+  override def startSharding(system: ActorSystem): ActorRef = {
     ClusterSharding(system).start(
       typeName = shardName,
       entityProps = OrderRepository.props(),
@@ -24,23 +16,8 @@ object OrderSharding {
       extractEntityId = extractEntityId,
       extractShardId = extractShardId
     )
-
-  val extractEntityId: ShardRegion.ExtractEntityId = {
-    case request: Request =>
-      (request.entityId.toString, request)
-    case _ => throw new IllegalArgumentException()
   }
 
-  val extractShardId: ShardRegion.ExtractShardId = {
-    case request: Request =>
-      (IdManager.extractShardId(request.key)).toString
-    case _ => throw new IllegalArgumentException()
-  }
-
-  val configName: String = "order-service.conf"
-  val config = ConfigFactory.load(configName)
-  val numShards = config.getInt("sharding.numshards")
-  val exposedPort = config.getInt("sharding.exposed-port")
-
-  val shardName: String = "Order"
+  override var seedPorts: Array[String] = Array("2571", "2572")
+  override var publicSeedPort: String = "2571"
 }
