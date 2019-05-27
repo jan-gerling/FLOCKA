@@ -102,31 +102,27 @@ class OrderRepository extends PersistentActorBase {
   }
 
   def buildResponseEvent(request: MessageTypes.Request): Event = {
-    if (validateState(request) == false) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidOrderException(request.key.toString))
-    }
-
     request match {
       case CreateOrder(orderId, userId) => return OrderCreated(orderId, userId)
 
       case DeleteOrder(orderId) => return OrderDeleted(orderId, true)
 
       case AddItem(orderId, itemId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
         return ItemAdded(orderId, itemId, success)
 
       case RemoveItem(orderId, itemId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus && orderState.items.contains(itemId)
         return ItemRemoved(orderId, itemId, success)
 
       case FindOrder(orderId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
-        return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList )
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
+        return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
       case CkeckoutOrder(orderId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
         return OrderCheckedOut(orderId, success)
 
@@ -144,7 +140,9 @@ class OrderRepository extends PersistentActorBase {
         else
         //ToDO: do we want to verify the userId?
           return true
-      case _ => return getOrderState(request.key).getOrElse(return false).active
+      case _ =>
+        println(getOrderState(request.key).getOrElse(return false).active)
+        return getOrderState(request.key).getOrElse(return false).active
     }
   }
 }

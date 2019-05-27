@@ -1,9 +1,8 @@
 package org.flocka.ServiceBasics
 
 import akka.actor.{PoisonPill, ReceiveTimeout}
-import akka.persistence.{PersistentActor, SaveSnapshotSuccess}
+import akka.persistence.{PersistentActor}
 import org.flocka.ServiceBasics.MessageTypes.Event
-
 import scala.concurrent.duration.FiniteDuration
 import akka.actor._
 import akka.cluster.sharding.ShardRegion.Passivate
@@ -47,7 +46,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     * Send the response to the original sender for the command/ query.
     * @param event the response to be returned to the serive
     */
-  def sendResponse(event: MessageTypes.Event ): Unit = {
+  protected def sendResponse(event: MessageTypes.Event ): Unit = {
     sender() ! event
   }
 
@@ -55,7 +54,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     * Persist and if sussessful send the response to the original sender for the command/ query.
     * @param event the response to be returned to the serive
     */
-  def sendPersistentResponse(event: MessageTypes.Event ): Unit = {
+  protected def sendPersistentResponse(event: MessageTypes.Event ): Unit = {
     persist(event) { event =>
       updateState(event)
       sender() ! event
@@ -64,6 +63,17 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
       context.system.eventStream.publish(event)
       if (lastSequenceNr % snapShotInterval == 0 && lastSequenceNr != 0)
         saveSnapshot(state)
+    }
+  }
+
+  protected def respond(request: MessageTypes.Request): Unit = {
+    if (validateState(request) == false) {
+      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidOrderException(request.key.toString))
+    } else {
+      request match {
+        case command: MessageTypes.Command => sendPersistentResponse(buildResponseEvent(command))
+        case query: MessageTypes.Query => sendResponse(buildResponseEvent(query))
+      }
     }
   }
 
@@ -79,9 +89,9 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   def validateState(request: MessageTypes.Request): Boolean
 
   val receiveCommand: Receive = {
-    case command: MessageTypes.Command => sendPersistentResponse(buildResponseEvent(command))
+    case command: MessageTypes.Command => respond(command)
 
-    case query: MessageTypes.Query => sendResponse(buildResponseEvent(query))
+    case query: MessageTypes.Query => respond(query)
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
   }
