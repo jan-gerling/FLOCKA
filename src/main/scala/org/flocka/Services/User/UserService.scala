@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.ServiceBasics.{CommandHandler, IdGenerator, MessageTypes, QueryHandler}
+import org.flocka.ServiceBasics._
 import org.flocka.Services.User.UserServiceComs._
 
 import scala.concurrent.duration._
@@ -17,7 +17,7 @@ import scala.util.{Failure, Success}
 /**
   * Contains routes for the Rest User Service. Method bind is used to start the server.
   */
-object UserService extends CommandHandler with QueryHandler {
+object UserService extends ServiceBase{
 
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "users"
