@@ -10,7 +10,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Order.OrderServiceComs._
-import org.flocka.sagas.{SECSharding, SagasExecutionControllerActor}
+import org.flocka.sagas.{SagaExecutionControllerSharding, SagasExecutionControllerActor}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -37,12 +37,7 @@ object OrderService extends ServiceBase {
   def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
 
-    val SECShardRegion: ActorRef = ClusterSharding(system).start(
-      typeName = SECSharding.shardName,
-      entityProps = SagasExecutionControllerActor.props,
-      settings = ClusterShardingSettings(system),
-      extractEntityId = SECSharding.extractEntityId,
-      extractShardId = SECSharding.extractShardId)
+    val SECShardRegion: ActorRef = SagaExecutionControllerSharding.startSharding(system)
 
     /*
       Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.

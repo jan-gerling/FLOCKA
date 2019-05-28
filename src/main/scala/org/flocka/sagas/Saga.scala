@@ -1,6 +1,8 @@
 package org.flocka.sagas
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import java.util.concurrent
+import java.util.concurrent.CopyOnWriteArrayList
 /**
   * A saga is a directed acyclic graph of operations to be executed according to the SAGA protocol
   *
@@ -9,20 +11,19 @@ import scala.collection.mutable.ListBuffer
   *
   * Did not choose to perform builder pattern as these are hard to implement safely in scala
   */
-class Saga extends Serializable {
-  var dagOfOps: mutable.ListBuffer[mutable.ListBuffer[SagaOperation]] =  mutable.ListBuffer(mutable.ListBuffer())
-  var mapOfOps: mutable.Map[Long, SagaOperation] = mutable.Map()
+case class Saga() {
+  val dagOfOps: CopyOnWriteArrayList[CopyOnWriteArrayList[SagaOperation]] =  new CopyOnWriteArrayList( )
+  dagOfOps.add(new CopyOnWriteArrayList())
 
   def addConcurrentOperation(sagaOp: SagaOperation) = {
-    dagOfOps.last += sagaOp
-    mapOfOps += (sagaOp.id -> sagaOp)
+    dagOfOps.get(dagOfOps.size() - 1).add(sagaOp)
   }
 
   def addSequentialOperation(sagaOp: SagaOperation) = {
-    val newList: mutable.ListBuffer[SagaOperation] = mutable.ListBuffer(sagaOp)
-    mapOfOps += (sagaOp.id -> sagaOp)
+    val newList:  CopyOnWriteArrayList[SagaOperation] = new CopyOnWriteArrayList()
+    newList.add(sagaOp)
 
-   dagOfOps += newList
+   dagOfOps.add(newList)
   }
 }
 

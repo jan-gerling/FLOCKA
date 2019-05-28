@@ -5,7 +5,7 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardReg
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes.Request
 
-object SECSharding {
+object SagaExecutionControllerSharding {
   def startSharding(system: ActorSystem): ActorRef =
     ClusterSharding(system).start(
       typeName = shardName,

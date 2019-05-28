@@ -18,7 +18,7 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 
-object SECTest extends App {
+object SagaExecutionControllerTest extends App {
   def logImportant(toLog: String) = println("==========================\n" + toLog + "\n=============================")
 
 
@@ -64,7 +64,7 @@ object SECTest extends App {
 
 
       //Start sharding system locally, this will create a ShardingRegion
-      SECSharding.startSharding(system)
+      SagaExecutionControllerSharding.startSharding(system)
 
       //sleep needed for proper boot of "cluster"
       Thread.sleep(5000)
@@ -94,7 +94,7 @@ object SECTest extends App {
         implicit val timeout: Timeout = Timeout(timeoutTime)
         implicit val executor: ExecutionContext = system.dispatcher
 
-        val secShard = ClusterSharding(system).shardRegion(SECSharding.shardName)
+        val secShard = ClusterSharding(system).shardRegion(SagaExecutionControllerSharding.shardName)
         val idGenerator: IdGenerator = new IdGenerator()
         val id : Long = idGenerator.generateId(100)
         secShard ! LoadSaga(id, testSaga)
