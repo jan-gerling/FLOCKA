@@ -108,31 +108,27 @@ class OrderRepository extends PersistentActorBase {
   }
 
   def buildResponseEvent(request: MessageTypes.Request): Event = {
-    if (validateState(request) == false) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidOrderException(request.key.toString))
-    }
-
     request match {
       case CreateOrder(orderId, userId) => return OrderCreated(orderId, userId)
 
       case DeleteOrder(orderId) => return OrderDeleted(orderId, true)
 
       case AddItem(orderId, itemId, operationId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
         return ItemAdded(orderId, itemId, success, operationId)
 
       case RemoveItem(orderId, itemId, operationId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus && orderState.items.contains(itemId)
         return ItemRemoved(orderId, itemId, success, operationId)
 
       case FindOrder(orderId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
       case CkeckoutOrder(orderId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new Exception("Order does not exist."))
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
         return OrderCheckedOut(orderId, success)
 

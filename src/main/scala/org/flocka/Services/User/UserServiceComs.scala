@@ -27,16 +27,6 @@ object UserServiceComs{
   final case class UserDeleted(userId: Long, success: Boolean) extends MessageTypes.Event()
 
   /**
-  /users/find/{user_id}
-    GET - returns a set of users with their details (id, and credit)
-  */
-  final case class FindUser(userId: Long) extends MessageTypes.Query{
-    override val entityId: Long = IdManager.extractRepositoryId(userId)
-    override val key: Long = userId
-  }
-  final case class UserFound(userId: Long, userDetails: Set[Long]) extends MessageTypes.Event
-
-  /**
   /users/credit/{user_id}
     GET - returns the current credit of a user
   */
