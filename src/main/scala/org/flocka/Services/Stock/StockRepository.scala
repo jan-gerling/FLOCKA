@@ -2,11 +2,13 @@ package org.flocka.Services.Stock
 
 import akka.actor.Props
 import akka.persistence.SnapshotOffer
+import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.PersistentActorBase.InvalidStockException
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Stock.StockServiceComs._
 import org.flocka.Utils.PushOutHashmapQueueBuffer
+
 import scala.collection.mutable
 import scala.concurrent.duration._
 
@@ -60,8 +62,10 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState], curre
 class StockRepository extends PersistentActorBase{
   override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
-  override val passivateTimeout: FiniteDuration = Configs.conf.getInt("stock.passivate-timeout") seconds
-  override val snapShotInterval: Int = Configs.conf.getInt("stock.snapshot-interval")
+  val config: Config = ConfigFactory.load("stock-service.conf")
+  val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
+  val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
+
   // Since we have millions of stock items, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
 

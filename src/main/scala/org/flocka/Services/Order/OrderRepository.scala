@@ -2,9 +2,10 @@ package org.flocka.Services.Order
 
 import akka.actor.{Props, _}
 import akka.persistence.SnapshotOffer
+import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.IdManager.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
+import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
 import org.flocka.Utils.PushOutHashmapQueueBuffer
 
@@ -83,8 +84,10 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
 class OrderRepository extends PersistentActorBase {
   override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
-  val passivateTimeout: FiniteDuration = Configs.conf.getInt("user.passivate-timeout") seconds
-  val snapShotInterval: Int = Configs.conf.getInt("user.snapshot-interval")
+  val config: Config = ConfigFactory.load("order-service.conf")
+  val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
+  val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
+
   // Since we have millions of order, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
 

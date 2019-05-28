@@ -2,8 +2,9 @@ package org.flocka.Services.User
 
 import akka.actor.{Props, _}
 import akka.persistence.SnapshotOffer
+import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
+import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.ServiceBasics.IdManager.InvalidIdException
 import org.flocka.Services.User.UserServiceComs._
 import org.flocka.Utils.PushOutHashmapQueueBuffer
@@ -74,8 +75,10 @@ case class UserRepositoryState(users: mutable.Map[Long, UserState], currentOpera
 class UserRepository extends PersistentActorBase {
   override var state: PersistentActorState = new UserRepositoryState(mutable.Map.empty[Long, UserState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
-  val passivateTimeout: FiniteDuration = Configs.conf.getInt("user.passivate-timeout") seconds
-  val snapShotInterval: Int = Configs.conf.getInt("user.snapshot-interval")
+  val config: Config = ConfigFactory.load("user-service.conf")
+  val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
+  val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
+
   // Since we have millions of users, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
 
