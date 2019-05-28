@@ -6,7 +6,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes.Request
 
 object SECSharding {
-  def startUserSharding(system: ActorSystem): ActorRef =
+  def startSharding(system: ActorSystem): ActorRef =
     ClusterSharding(system).start(
       typeName = shardName,
       entityProps = SagasExecutionControllerActor.props(),
@@ -27,8 +27,8 @@ object SECSharding {
     case _ => throw new IllegalArgumentException()
   }
 
-  val conf: Config = ConfigFactory.load()
+  val conf: Config = ConfigFactory.load("order-service.conf")
   val numShards = conf.getInt("sec.numshards")
 
-  val shardName: String = "Sec"
+  val shardName: String = conf.getString("sec.shard-name")
 }

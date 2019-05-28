@@ -11,9 +11,10 @@ import akka.persistence.{PersistentActor, RecoveryCompleted, SnapshotOffer}
 import scala.concurrent.duration._
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
-import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
+import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.ServiceBasics.MessageTypes.{Command, Event, Query}
 import org.flocka.Services.User.{UserRepositoryState, UserState}
+import org.flocka.Utils.{PushOutBuffer, PushOutHashmapQueueBuffer, PushOutQueueBuffer}
 import org.flocka.sagas.SagaExecutionControllerComs.{Execute, Executing, LoadSaga, RollbackStarted, SagaAborted, SagaCompleted, SagaLoaded, StepCompleted, StepRollbackCompleted}
 
 import scala.collection.mutable
@@ -28,12 +29,13 @@ object SagasExecutionControllerActor {
   final val STATE_POST_EXEC_SUCC: Int = 3
   final val STATE_POST_EXEC_FAIL: Int = 4
 
-  val loadBalancerURI = ConfigFactory.load().getString("loadbalancer.uri")
 
   def props(): Props = Props(new SagasExecutionControllerActor())
 }
 
 case class SECState(saga: Saga, concurrentOperationsIndex: Int, state: Int, entityId: Long, requester: ActorRef) extends PersistentActorState {
+
+  override var doneOperations = new PushOutHashmapQueueBuffer[Long, Event](0)
 
   def updated(event: Event): SECState = event match {
     case SagaLoaded(saga: Saga, cmdRequester: ActorRef) =>
@@ -56,8 +58,11 @@ case class SECState(saga: Saga, concurrentOperationsIndex: Int, state: Int, enti
 
 class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogging {
   override var state: PersistentActorState = new SECState(new Saga(), 0, SagasExecutionControllerActor.STATE_PRE_EXEC, 0L, self) // For some reason i cant use _, if someone knows a fix, please tell
-  val passivateTimeout: FiniteDuration = Configs.conf.getInt("sec.passivate-timeout") seconds
-  val snapShotInterval: Int = Configs.conf.getInt("sec.snapshot-interval")
+  val config : Config = ConfigFactory.load("order-service.conf")
+  val passivateTimeout: FiniteDuration = config.getInt("sec.passivate-timeout") seconds
+  val snapShotInterval: Int = config.getInt("sec.snapshot-interval")
+  val loadBalancerURI = config.getString("clustering.loadbalancer.uri")
+
   context.setReceiveTimeout(passivateTimeout)
   val system = context.system
   val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(5 seconds)
@@ -130,7 +135,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   }
 
   def doForwardOperation(op: SagaOperation, currIndex: Int): Unit = {
-    val finalUri: String = SagasExecutionControllerActor.loadBalancerURI  + op.pathForward + "?operationId=" + op.id
+    val finalUri: String = loadBalancerURI  + op.pathForward + "?operationId=" + op.id
     val future: Future[HttpResponse] = Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri), settings = connectionPoolSettings)
     future.onComplete {
       case Success(res) =>
@@ -151,7 +156,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   }
 
   def doBackwardOperation(op: SagaOperation, currIndex: Int): Unit = {
-    val finalUri: String = SagasExecutionControllerActor.loadBalancerURI + op.pathInvert + "?operationId=" + op.backwardId
+    val finalUri: String = loadBalancerURI + op.pathInvert + "?operationId=" + op.backwardId
     val future: Future[HttpResponse] = Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri), settings = connectionPoolSettings)
     future.onComplete {
       case Success(res) =>

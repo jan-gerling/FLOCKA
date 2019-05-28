@@ -7,10 +7,11 @@ import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStor
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import akka.pattern.ask
+import org.flocka.ServiceBasics.{IdGenerator, IdManager}
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.Services.User.{IdManager, MockLoadbalancerService, UserService, UserSharding}
-import org.flocka.ShardedUserServiceApp.logImportant
+import org.flocka.Services.User.{MockLoadbalancerService, UserService, UserSharding}
 import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
+import sun.java2d.xr.XIDGenerator
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -51,7 +52,7 @@ object SECTest extends App {
     Seq("2551", "2552") foreach { port =>
 
       val config = ConfigFactory.parseString("akka.remote.netty.tcp.port=" + port).
-        withFallback(ConfigFactory.load())
+        withFallback(ConfigFactory.load("order-service.conf"))
 
       // Create an Akka system for each port
       implicit val system = ActorSystem(config getString "clustering.cluster.name", config)
@@ -99,7 +100,8 @@ object SECTest extends App {
         implicit val executor: ExecutionContext = system.dispatcher
 
         val secShard = ClusterSharding(system).shardRegion(SECSharding.shardName)
-        val id : Long = IdManager.generateId(100)
+        val idGenerator: IdGenerator = new IdGenerator()
+        val id : Long = idGenerator.generateId(100)
         secShard ! LoadSaga(id, testSaga)
          secShard ! Execute(id)
 
