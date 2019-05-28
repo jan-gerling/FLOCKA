@@ -50,10 +50,10 @@ object PaymentService extends ServiceBase {
     }
 
     val postPayPaymentRoute: Route = {
-      pathPrefix(service /  "pay" / LongNumber / LongNumber ) { (userId, orderId) ⇒
+      pathPrefix(service /  "pay" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
         post{
           pathEndOrSingleSlash {
-            onComplete(commandHandler(PayPayment(userId, orderId))) {
+            onComplete(commandHandler(PayPayment(userId, orderId, operationId.getOrElse{-1L}))) {
               throw new UnsupportedOperationException("The service checkout is not yet supported by " + getClass)
             }
           }
@@ -62,10 +62,10 @@ object PaymentService extends ServiceBase {
     }
 
     val postCancelPaymentRoute: Route = {
-      pathPrefix(service /  "cancelPayment" / LongNumber / LongNumber ) { (userId, orderId) ⇒
+      pathPrefix(service /  "cancelPayment" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
         post{
           pathEndOrSingleSlash {
-            onComplete(commandHandler(CancelPayment(userId, orderId))) {
+            onComplete(commandHandler(CancelPayment(userId, orderId, operationId.getOrElse{-1L}))) {
               case Success(value) => complete(value.toString)
               case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }

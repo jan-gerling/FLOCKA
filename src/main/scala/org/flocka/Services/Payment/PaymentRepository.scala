@@ -30,10 +30,10 @@ case class PaymentState(userId: Long,
 
   def updated(event: MessageTypes.Event): PaymentState = event match {
 
-    case PaymentPayed(userId, orderId, true) =>
+    case PaymentPayed(userId, orderId, true, _) =>
       copy(userId = userId, orderId = orderId, status = true)
 
-    case PaymentCanceled(userId, orderId) =>
+    case PaymentCanceled(userId, orderId, _) =>
       copy(userId = userId, orderId = orderId, status = false)
 
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
@@ -41,11 +41,14 @@ case class PaymentState(userId: Long,
 }
 
 case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState], currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
+  override var doneOperations = currentOperations
 
   def updated(event: MessageTypes.Event): PaymentRepositoryState = event match {
-    case PaymentPayed(userId, orderId, true) =>
+    case PaymentPayed(userId, orderId, true, operationId) =>
+      doneOperations.push(operationId, event)
       copy(payments += orderId -> new PaymentState(userId, orderId, true).updated(event))
-    case PaymentCanceled(userId, orderId) =>
+    case PaymentCanceled(userId, orderId, operationId) =>
+      doneOperations.push(operationId, event)
       copy(payments += orderId -> new PaymentState(userId, orderId, false).updated(event))
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
   }
@@ -53,7 +56,6 @@ case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState], cur
   /**
     * holds the last n amount of successfully carried out commands with an operation id on this repositories
     */
-  override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = _
 }
 
 /**
@@ -95,9 +97,9 @@ class PaymentRepository extends PersistentActorBase {
     }
 
     request match {
-      case PayPayment(userId, orderId) => return PaymentPayed(userId, orderId, true)
+      case PayPayment(userId, orderId, operationId) => return PaymentPayed(userId, orderId, true, operationId)
 
-      case CancelPayment(userId, orderId) => return PaymentCanceled(userId, orderId)
+      case CancelPayment(userId, orderId, operationId) => return PaymentCanceled(userId, orderId, operationId)
 
       case GetPaymentStatus(orderId) =>
         val paymentState: PaymentState = getPaymentState(orderId).getOrElse(throw new Exception("No payment state"))
@@ -109,9 +111,9 @@ class PaymentRepository extends PersistentActorBase {
 
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
-      case PayPayment(userId, orderId) =>
+      case PayPayment(_, _, _) =>
         return true
-      case CancelPayment(userId, orderId) =>
+      case CancelPayment(userId, orderId, _) =>
         if (getPaymentState(orderId).isDefined)
           return true
         else if (getPaymentState(orderId).get.userId != userId)
