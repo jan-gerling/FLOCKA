@@ -23,7 +23,7 @@ abstract case class ShardingBase(name: String, configPath: String) {
 
   final val extractShardId: ShardRegion.ExtractShardId = {
     case request: Request =>
-      (IdManager.extractShardId(request.key)).toString
+      (IdResolver.extractShardId(request.key)).toString
     case _ => throw new IllegalArgumentException()
   }
 

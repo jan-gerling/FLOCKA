@@ -3,7 +3,7 @@ package org.flocka.Services.Order
 import akka.actor.{Props, _}
 import akka.persistence.SnapshotOffer
 import com.typesafe.config.{Config, ConfigFactory}
-import org.flocka.ServiceBasics.IdManager.InvalidIdException
+import org.flocka.ServiceBasics.IdResolver.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
