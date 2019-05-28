@@ -56,10 +56,7 @@ object PaymentService extends CommandHandler with QueryHandler {
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(PayPayment(userId, orderId))) {
-
-              Future[HttpResponde] response = Http().singleRequest(HttpRequest(method = HttpMethods.GET, uri = loadBalancerUri))
-              case Success(value) => complete(value.toString)
-              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
+              throw new UnsupportedOperationException("The service checkout is not yet supported by " + getClass)
             }
           }
         }
