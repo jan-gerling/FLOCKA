@@ -26,7 +26,7 @@ object MockLoadbalancerService {
   var paymentsDone = 0
   var decreaseStocksDone = 0
 
-  val happy = true
+  val happy = false
 
   /**
     * Starts the server
@@ -50,11 +50,15 @@ object MockLoadbalancerService {
                 complete("User  " + userId + " pays for " + orderId)
               }
               else {
-                paymentsDone += 1
-                if (paymentsDone % 2 == 0)
+                if (paymentsDone % 3 != 2) {
+                  paymentsDone += 1
+
                   complete("User  " + userId + " pays for " + orderId)
-                else
+                }else {
+                  paymentsDone += 1
+
                   complete("Failed")
+                }
               }
             }
           }
@@ -80,14 +84,18 @@ object MockLoadbalancerService {
         parameter('operationId.?) { operationId =>
           post {
             pathEndOrSingleSlash {
+              //Thread.sleep(6000)
               println("C")
               if (happy) {
                 complete("Stock decreased by " + amount)
               }else {
-                decreaseStocksDone += 1
-                if(decreaseStocksDone % 2 == 0) {
+                if(decreaseStocksDone % 3 != 2) {
+                  decreaseStocksDone += 1
+
                   complete("Stock decreased by " + amount)
                 }else{
+                  decreaseStocksDone += 1
+
                   complete("Failed")
                 }
               }
