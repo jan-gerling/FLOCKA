@@ -58,9 +58,9 @@ case class SECState(saga: Saga, concurrentOperationsIndex: Int, state: Int, enti
 
 class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogging {
   override var state: PersistentActorState = new SECState(new Saga(), 0, SagasExecutionControllerActor.STATE_PRE_EXEC, 0L, self) // For some reason i cant use _, if someone knows a fix, please tell
-  val config : Config = ConfigFactory.load("order-service.conf")
-  val passivateTimeout: FiniteDuration = config.getInt("sec.passivate-timeout") seconds
-  val snapShotInterval: Int = config.getInt("sec.snapshot-interval")
+  val config : Config = ConfigFactory.load("saga-execution-controller.conf")
+  val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
+  val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
   val loadBalancerURI = config.getString("clustering.loadbalancer.uri")
 
   context.setReceiveTimeout(passivateTimeout)

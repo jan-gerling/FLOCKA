@@ -49,7 +49,7 @@ object SECTest extends App {
 
 
   override def main(args: Array[String]): Unit = {
-    Seq("2551", "2552") foreach { port =>
+    Seq("2571", "2572") foreach { port =>
 
       val config = ConfigFactory.parseString("akka.remote.netty.tcp.port=" + port).
         withFallback(ConfigFactory.load("order-service.conf"))
@@ -59,21 +59,16 @@ object SECTest extends App {
 
 
       //Journal is currently leveldb, it is used to persist events of PersistentActors
-      val pathToJournal : ActorPath =  ActorPath.fromString("akka.tcp://" + config.getString("clustering.cluster.name")+ "@"+config.getString("akka.remote.netty.tcp.hostname")+":2551/user/store")
-      startupSharedJournal(system, startStore = (port == "2551"), path =pathToJournal)(system.dispatcher)
+      val pathToJournal : ActorPath =  ActorPath.fromString("akka.tcp://" + config.getString("clustering.cluster.name")+ "@"+config.getString("akka.remote.netty.tcp.hostname")+":2571/user/store")
+      startupSharedJournal(system, startStore = (port == "2571"), path =pathToJournal)(system.dispatcher)
 
 
       //Start sharding system locally, this will create a ShardingRegion
-      ClusterSharding(system).start(
-        typeName = SECSharding.shardName,
-        entityProps = SagasExecutionControllerActor.props,
-        settings = ClusterShardingSettings(system),
-        extractEntityId = SECSharding.extractEntityId,
-        extractShardId = SECSharding.extractShardId)
+      SECSharding.startSharding(system)
 
       //sleep needed for proper boot of "cluster"
       Thread.sleep(5000)
-      if(port == "2552"){
+      if(port == "2572"){
         attemptStartRest()
         Thread.sleep(2000)
         logImportant("Sending saga to shardRegion")

@@ -27,8 +27,8 @@ object SECSharding {
     case _ => throw new IllegalArgumentException()
   }
 
-  val conf: Config = ConfigFactory.load("order-service.conf")
-  val numShards = conf.getInt("sec.numshards")
+  val conf: Config = ConfigFactory.load("saga-execution-controller.conf")
+  val numShards = conf.getInt("sharding.numshards")
 
-  val shardName: String = conf.getString("sec.shard-name")
+  val shardName: String = conf.getString("sharding.shard-name")
 }

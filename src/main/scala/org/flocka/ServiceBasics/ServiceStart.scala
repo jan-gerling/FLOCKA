@@ -50,12 +50,12 @@ object ServiceStart {
         SharedLeveldbJournal.setStore(ref, system)
         logImportant("Found journal for service: " + service.getClass)
       case _ =>
-        system.log.error("Shared journal not started at {}" + path + " for service: " + service.getClass)
+        system.log.error("Shared journal not started at " + path + " for service: " + service.getClass)
         system.terminate()
     }
     futureActor.onFailure {
       case _ =>
-        system.log.error("Lookup of shared journal at {} timed out" + path + " for service: " + service.getClass)
+        system.log.error("Lookup of shared journal at " + path + " timed out for service: " + service.getClass)
         system.terminate()
     }
   }

@@ -120,6 +120,4 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
   }
-
-  def getReceiveCommand: Receive = return receiveCommand
 }
