@@ -1,23 +1,23 @@
-package org.flocka.Services.User
+package org.flocka.Services.Stock
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import org.flocka.ServiceBasics.{ ShardingBase}
+import org.flocka.ServiceBasics.{ShardingBase}
 
 /**
-  * Don't forget to configure the number of shards in user-service.conf
+  * Don't forget to configure the number of shards in stock-service.conf
   */
-object UserSharding extends ShardingBase("User", "user-service.conf"){
+object StockSharding extends ShardingBase("Stock", "stock-service.conf") {
   override def startSharding(system: ActorSystem): ActorRef = {
     ClusterSharding(system).start(
       typeName = shardName,
-      entityProps = UserRepository.props(),
+      entityProps = StockRepository.props(),
       settings = ClusterShardingSettings(system),
       extractEntityId = extractEntityId,
       extractShardId = extractShardId
     )
   }
 
-  override var seedPorts: Array[String] = Array("2551", "2552")
-  override var publicSeedPort: String = "2551"
+  override var seedPorts: Array[String] = Array("2561", "2562")
+  override var publicSeedPort: String = "2561"
 }

@@ -34,7 +34,12 @@ object MessageTypes {
   /**
   Every command with a potential change of data has to extend this trait.
    */
-  trait Command extends Request
+  trait Command extends Request {
+    /**
+     operationId id for an operation that is only supposed to be done once, used to make this operation idempotent for a limited time
+      */
+    val operationId: Long = -1
+  }
 
   /**
   Only requests with no change to data are allowed to extend this trait.
@@ -44,6 +49,10 @@ object MessageTypes {
   /**
   This trait is added to all persisted operations, thus whenever an event is received its contents was already done.
     */
-  trait Event
-
+  trait Event {
+    /**
+    operationId id for an operation that is only supposed to be done once, used to make this operation idempotent for a limited time
+      */
+    val operationId: Long = -1
+  }
 }
