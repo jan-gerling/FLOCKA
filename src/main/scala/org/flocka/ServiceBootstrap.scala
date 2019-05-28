@@ -18,9 +18,9 @@ object ServiceBootstrap extends App {
       ServiceStart.startService(UserSharding, UserService)
     } else if(args(0).equalsIgnoreCase("StockService") || args(0).equalsIgnoreCase("s")){
       ServiceStart.startService(StockSharding, StockService)
-    } else if(args(0).equalsIgnoreCase("OrderService") || args(0).equalsIgnoreCase("o")) {
+    } else if(args(0).equalsIgnoreCase("OrderService") || args(0).equalsIgnoreCase("o")){
       ServiceStart.startService(OrderSharding, OrderService)
-    } else if(args(0).equalsIgnoreCase("PaymentService") || args(0).equalsIgnoreCase("p")) {
+    } else if(args(0).equalsIgnoreCase("PaymentService") || args(0).equalsIgnoreCase("p")){
       ServiceStart.startService(PaymentSharding, PaymentService)
     } else{
       println("[Error] Unknown argument: " + args(0))

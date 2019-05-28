@@ -99,7 +99,7 @@ class PaymentRepository extends PersistentActorBase {
       case CancelPayment(userId, orderId, operationId) => return PaymentCanceled(userId, orderId, operationId)
 
       case GetPaymentStatus(orderId) =>
-        val paymentState: PaymentState = getPaymentState(orderId).getOrElse(throw new Exception("No payment state"))
+        val paymentState: PaymentState = getPaymentState(orderId).getOrElse(throw new InvalidPaymentException(orderId.toString))
         return PaymentStatusFound(orderId, paymentState.status)
 
       case _ => throw new IllegalArgumentException(request.toString)
@@ -114,8 +114,8 @@ class PaymentRepository extends PersistentActorBase {
         if (getPaymentState(orderId).isDefined)
           return true
         else if (getPaymentState(orderId).get.userId != userId)
-          throw new Exception("Different user made this payment.")
-        else throw new Exception("Payment does not exist.")
+          throw new IllegalAccessException()
+        else throw new InvalidPaymentException(orderId.toString)
       case GetPaymentStatus(orderId)=>
         if (getPaymentState(orderId).isDefined)
           return true
