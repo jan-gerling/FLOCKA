@@ -16,11 +16,6 @@ import org.flocka.ServiceBasics.MessageTypes.Request
   */
 object PaymentSharding {
 
-  /**
-    *
-    * @param system
-    * @return
-    */
   def startPaymentSharding(system: ActorSystem): ActorRef =
     ClusterSharding(system).start(
       typeName = shardName,

@@ -56,10 +56,23 @@ object PaymentService extends CommandHandler with QueryHandler {
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(PayPayment(userId, orderId))) {
-              throw new UnsupportedOperationException("The service checkout is not yet supported by " + getClass)
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
+
             }
           }
         }
+      }
+    }
+
+    def findUser(userId: LongNumber): Unit ={
+      findUser()
+      val future = Http().singleRequest(HttpRequest(method = HttpMethods.GET, uri = loadBalancerUri))
+      future.onComplete{
+        case Success(res)=>
+
+        case Failure(exception)=>
+
       }
     }
 
