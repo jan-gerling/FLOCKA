@@ -5,7 +5,7 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import org.flocka.ServiceBasics.{ShardingBase}
 
 /**
-  * Don't forget to configure the number of shards in order-service.conf
+  * Don't forget to configure the number of shards in payment-service.conf
   */
 object PaymentSharding extends ShardingBase("Payment", "payment-service.conf"){
   override def startSharding(system: ActorSystem): ActorRef =
