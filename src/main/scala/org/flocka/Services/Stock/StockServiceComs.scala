@@ -1,6 +1,6 @@
 package org.flocka.Services.Stock
 
-import org.flocka.ServiceBasics.{IdManager, MessageTypes}
+import org.flocka.ServiceBasics.{IdResolver, MessageTypes}
 
 object StockServiceComs {
 
@@ -9,7 +9,7 @@ object StockServiceComs {
     * POST - returns and ID
     */
   final case class CreateItem(itemId: Long) extends MessageTypes.Command {
-    override val entityId: Long = IdManager.extractRepositoryId(itemId)
+    override val entityId: Long = IdResolver.extractRepositoryId(itemId)
     override val key: Long = itemId
   }
 
@@ -20,7 +20,7 @@ object StockServiceComs {
     * GET - returns the current availability of a stock item
     */
   final case class GetAvailability(itemId: Long) extends MessageTypes.Query {
-    override val entityId: Long = IdManager.extractRepositoryId(itemId)
+    override val entityId: Long = IdResolver.extractRepositoryId(itemId)
     override val key: Long = itemId
   }
 
@@ -31,7 +31,7 @@ object StockServiceComs {
     * POST - add the amount to the available amount of the stock item
     */
   final case class IncreaseAvailability(itemId: Long, amount: Long, operation: Long) extends MessageTypes.Command {
-    override val entityId: Long = IdManager.extractRepositoryId(itemId)
+    override val entityId: Long = IdResolver.extractRepositoryId(itemId)
     override val key: Long = itemId
     override val operationId: Long = operation
   }
@@ -45,7 +45,7 @@ object StockServiceComs {
     * POST -  substracts the amount from the available amount of the stock item
     */
   final case class DecreaseAvailability(itemId: Long, amount: Long, operation: Long) extends MessageTypes.Command {
-    override val entityId: Long = IdManager.extractRepositoryId(itemId)
+    override val entityId: Long = IdResolver.extractRepositoryId(itemId)
     override val key: Long = itemId
     override val operationId: Long = operation
   }

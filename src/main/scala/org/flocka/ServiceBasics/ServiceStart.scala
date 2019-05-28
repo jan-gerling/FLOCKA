@@ -65,7 +65,7 @@ object ServiceStart {
       //Get ActorRef of stock Shard Region
       val stockShard = ClusterSharding(system).shardRegion(shardStrategy.shardName)
       //Start rest service
-      service.bind(stockShard, shardStrategy.exposedPort, system.dispatcher).onComplete(
+      service.bind(stockShard, system.dispatcher).onComplete(
         Success => logImportant("Started server for service: " + service.getClass)
       )(system.dispatcher)
     }

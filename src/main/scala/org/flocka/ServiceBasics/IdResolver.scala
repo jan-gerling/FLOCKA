@@ -3,7 +3,7 @@ package org.flocka.ServiceBasics
 /**
   * Defines and implements an id mapping schema.
   */
-object IdManager{
+object IdResolver{
   case class InvalidIdException(Id: String) extends Exception("This Id: " + Id + " was already assigned.")
 
   final val repositoryThresholdExtension = 2
@@ -49,13 +49,13 @@ class IdGenerator {
     calculate and crop the ids for the repository and object from the generated uuid
      */
     val repositoryId: Long = randomGenerator.nextInt(currentRepositoryThreshold)//(uuid & IdManager.repositoryIdMask) % IdManager.repositoryIdRange(currentRepositoryThreshold)
-    val objectId: Long = randomGenerator.nextInt(IdManager.maxObjectIdRange.toInt)//(uuid & IdManager.objectIdMask)
+    val objectId: Long = randomGenerator.nextInt(IdResolver.maxObjectIdRange.toInt)//(uuid & IdManager.objectIdMask)
 
     /*
     shift the id parts according to their id schema
      */
-    val shardIdPart: Long = shardId << (IdManager.repositoryIdBitLength + IdManager.objectBitLength)
-    val repositoryIdPart: Long = repositoryId << (IdManager.objectBitLength)
+    val shardIdPart: Long = shardId << (IdResolver.repositoryIdBitLength + IdResolver.objectBitLength)
+    val repositoryIdPart: Long = repositoryId << (IdResolver.objectBitLength)
     val objectIdPart: Long = objectId
 
     return shardIdPart + repositoryIdPart + objectIdPart
@@ -66,15 +66,15 @@ class IdGenerator {
     * @param numberShards is the total number of shards in which the entity is being sharded.
     */
   final def generateId(numberShards: Int): Long = {
-    if(numberShards > IdManager.maxShardIdRange)
-      throw new IllegalArgumentException("The number of shards is to high, a maximum of " + IdManager.maxShardIdRange + " is allowed.")
+    if(numberShards > IdResolver.maxShardIdRange)
+      throw new IllegalArgumentException("The number of shards is to high, a maximum of " + IdResolver.maxShardIdRange + " is allowed.")
 
     val shardId: Int = randomGenerator.nextInt(numberShards)
     return generateId(shardId.toLong)
   }
 
   final def increaseEntropy(): Unit ={
-    currentRepositoryThreshold += IdManager.repositoryThresholdExtension
+    currentRepositoryThreshold += IdResolver.repositoryThresholdExtension
     println("Increase entropy to: " + currentRepositoryThreshold)
   }
 }

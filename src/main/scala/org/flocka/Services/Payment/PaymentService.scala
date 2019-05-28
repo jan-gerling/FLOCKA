@@ -20,19 +20,12 @@ import scala.util.{Failure, Success}
   */
 object PaymentService extends ServiceBase {
 
+  override val configName: String = "payment-service.conf"
   val service = "payment"
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
-  /**
-    * Starts the server
-    * @param shardRegion the region behind which the
-    * @param exposedPort the port in which to expose the service
-    * @param executor jeez idk,
-    * @param system the ActorSystem
-    * @return
-    */
-  def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
+  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
     /*
       Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
       */

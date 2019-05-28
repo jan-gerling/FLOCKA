@@ -114,7 +114,7 @@ class PaymentRepository extends PersistentActorBase {
         if (getPaymentState(orderId).isDefined)
           return true
         else if (getPaymentState(orderId).get.userId != userId)
-          throw new IllegalAccessException()("Different user made this payment.")
+          throw new IllegalAccessException("Different user made this payment.")
         else throw new InvalidPaymentException("Payment with " + orderId.toString + "does not exist.")
       case GetPaymentStatus(orderId)=>
         if (getPaymentState(orderId).isDefined)

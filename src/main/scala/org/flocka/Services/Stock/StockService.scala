@@ -19,20 +19,13 @@ import scala.util.{Failure, Success}
   */
 object StockService extends ServiceBase {
 
+  override val configName: String = "stock-service.conf"
   val randomGenerator: scala.util.Random = scala.util.Random
   val service = "stock"
   val timeoutTime: FiniteDuration = 500 milliseconds
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
-  /**
-    * Starts the server
-    * @param shardRegion the region behind which the
-    * @param exposedPort the port in which to expose the service
-    * @param executor jeez idk,
-    * @param system the ActorSystem
-    * @return
-    */
- def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem) : Future[ServerBinding] = {
+ def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem) : Future[ServerBinding] = {
    val regionalIdManager: IdGenerator = new IdGenerator()
 
    /*
