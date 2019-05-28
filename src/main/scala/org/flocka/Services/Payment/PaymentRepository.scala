@@ -5,6 +5,7 @@ import akka.persistence.SnapshotOffer
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics
 import org.flocka.ServiceBasics.MessageTypes.Event
+import org.flocka.ServiceBasics.PersistentActorBase.InvalidPaymentException
 import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Payment.PaymentServiceComs._
 import org.flocka.Utils.PushOutHashmapQueueBuffer
@@ -92,10 +93,6 @@ class PaymentRepository extends PersistentActorBase {
   }
 
   def buildResponseEvent(request: MessageTypes.Request): Event = {
-    if (validateState(request) == false) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidPaymentException(request.key.toString))
-    }
-
     request match {
       case PayPayment(userId, orderId, operationId) => return PaymentPayed(userId, orderId, true, operationId)
 
@@ -122,7 +119,7 @@ class PaymentRepository extends PersistentActorBase {
       case GetPaymentStatus(orderId)=>
         if (getPaymentState(orderId).isDefined)
           return true
-        else throw new Exception("Payment does not exist.")
+        else throw new InvalidPaymentException(orderId.toString)
     }
   }
 }

@@ -7,8 +7,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
-import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler, ServiceBase}
+import org.flocka.ServiceBasics.{ MessageTypes, ServiceBase}
 import org.flocka.Services.Payment.PaymentServiceComs._
 
 import scala.concurrent.duration._
@@ -21,7 +20,6 @@ import scala.util.{Failure, Success}
   */
 object PaymentService extends ServiceBase {
 
-  val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "payment"
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
