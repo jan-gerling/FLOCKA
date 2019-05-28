@@ -3,13 +3,12 @@ package org.flocka.Services.Payment
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler}
+import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, QueryHandler, ServiceBase}
 import org.flocka.Services.Payment.PaymentServiceComs._
 
 import scala.concurrent.duration._
@@ -20,11 +19,10 @@ import scala.util.{Failure, Success}
 /**
   * Contains routes for the Rest Payment Service. Method bind is used to start the server.
   */
-object PaymentService extends CommandHandler with QueryHandler {
+object PaymentService extends ServiceBase {
 
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "payment"
-  val loadBalancerUri = ConfigFactory.load().getString("loadbalancer.uri")
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 

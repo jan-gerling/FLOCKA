@@ -2,10 +2,12 @@ package org.flocka.Services.Payment
 
 import akka.actor.{Props, _}
 import akka.persistence.SnapshotOffer
+import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.ServiceBasics.{Configs, MessageTypes, PersistentActorBase, PersistentActorState}
+import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Payment.PaymentServiceComs._
+import org.flocka.Utils.PushOutHashmapQueueBuffer
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -38,7 +40,7 @@ case class PaymentState(userId: Long,
   }
 }
 
-case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState]) extends PersistentActorState {
+case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState], currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
 
   def updated(event: MessageTypes.Event): PaymentRepositoryState = event match {
     case PaymentPayed(userId, orderId, true) =>
@@ -47,6 +49,11 @@ case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState]) ext
       copy(payments += orderId -> new PaymentState(userId, orderId, false).updated(event))
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
   }
+
+  /**
+    * holds the last n amount of successfully carried out commands with an operation id on this repositories
+    */
+  override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = _
 }
 
 /**
@@ -54,11 +61,13 @@ case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState]) ext
   * All valid commands/ queries for payments are resolved here and then send back to the requesting actor (supposed to be PaymentService via PaymentActorSupervisor).
   */
 class PaymentRepository extends PersistentActorBase {
-  override var state: PersistentActorState = new PaymentRepositoryState(mutable.Map.empty[Long, PaymentState])
+  override var state: PersistentActorState = new PaymentRepositoryState(mutable.Map.empty[Long, PaymentState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
-  val passivateTimeout: FiniteDuration = Configs.conf.getInt("payment.passivate-timeout") seconds
-  val snapShotInterval: Int = Configs.conf.getInt("payment.snapshot-interval")
-  // Since we have millions of payments, we should passivate quickly
+  val config: Config = ConfigFactory.load("payment-service.conf")
+  val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
+  val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
+
+  // Since we have millions of users, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
 
   def updateState(event: MessageTypes.Event): Unit =
@@ -71,7 +80,7 @@ class PaymentRepository extends PersistentActorBase {
 
   def getPaymentRepository(): PaymentRepositoryState = {
     state match {
-      case state@PaymentRepositoryState(payments) => return state
+      case state@PaymentRepositoryState(_, _) => return state
       case state => throw new Exception("Invalid payment-repository state type for payment-repository: " + persistenceId + ".A state ActorState.PaymentRepository type was expected, but " + state.toString + " was found.")
     }
   }

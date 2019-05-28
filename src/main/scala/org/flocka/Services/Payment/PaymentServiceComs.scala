@@ -1,6 +1,6 @@
 package org.flocka.Services.Payment
 
-import org.flocka.ServiceBasics.MessageTypes
+import org.flocka.ServiceBasics.{IdManager, MessageTypes}
 
 /**
   * Define all allowed payment service communications here. They have to comply to the CQRS scheme.
