@@ -3,6 +3,7 @@ package org.flocka.Services.User
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -14,11 +15,12 @@ import org.flocka.Services.User.UserServiceComs._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
+import spray.json._
 
 /**
   * Contains routes for the Rest User Service. Method bind is used to start the server.
   */
-object UserService extends ServiceBase{
+object UserService extends ServiceBase with UserEventMarshaller {
 
   override val configName: String = "user-service.conf"
   val randomGenerator: scala.util.Random  = scala.util.Random
@@ -47,7 +49,7 @@ object UserService extends ServiceBase{
     def createNewUser(): Route ={
       //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
       onComplete(commandHandler(CreateUser(regionalIdManager.generateId(UserSharding.numShards)))) {
-        case Success(value) => complete(value.toString)
+        case Success(value) => complete(value.asInstanceOf[ToResponseMarshallable])
         case Failure(ex) => if(ex.toString.contains("InvalidIdException")){regionalIdManager.increaseEntropy() ;createNewUser()} else complete(s"An error occurred: ${ex.getMessage}")
       }
     }
