@@ -23,7 +23,7 @@ abstract case class ShardingBase(name: String, configPath: String) {
 
   final val extractShardId: ShardRegion.ExtractShardId = {
     case request: Request =>
-      (IdManager.extractShardId(request.key)).toString
+      (IdResolver.extractShardId(request.key)).toString
     case _ => throw new IllegalArgumentException()
   }
 
@@ -38,7 +38,6 @@ abstract case class ShardingBase(name: String, configPath: String) {
   var publicSeedPort: String
 
   final val numShards: Int = config.getInt("sharding.numshards")
-  final val exposedPort: Int = config.getInt("sharding.exposed-port")
   final val clusterName: String = config.getString("clustering.cluster.name")
   final val hostName: String = config.getString("akka.remote.netty.tcp.hostname")
 }

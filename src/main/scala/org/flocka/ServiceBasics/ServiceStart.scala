@@ -21,7 +21,9 @@ object ServiceStart {
       implicit val system = ActorSystem(shardStrategy.clusterName, config)
 
       //Journal is currently leveldb, it is used to persist events of PersistentActors
-      val pathToJournal : ActorPath =  ActorPath.fromString("akka.tcp://" + shardStrategy.clusterName + "@" + shardStrategy.hostName + ":" + port + "/user/store")
+      val path = "akka.tcp://" + shardStrategy.clusterName + "@" + shardStrategy.hostName + ":" + shardStrategy.publicSeedPort + "/user/store"
+      val pathToJournal : ActorPath =  ActorPath.fromString(path)
+
       startupSharedJournal(system, startStore = port == shardStrategy.publicSeedPort, path =pathToJournal, service)(system.dispatcher)
 
       //Start sharding system locally, this will create a ShardingRegion
@@ -65,7 +67,7 @@ object ServiceStart {
       //Get ActorRef of stock Shard Region
       val stockShard = ClusterSharding(system).shardRegion(shardStrategy.shardName)
       //Start rest service
-      service.bind(stockShard, shardStrategy.exposedPort, system.dispatcher).onComplete(
+      service.bind(stockShard, system.dispatcher).onComplete(
         Success => logImportant("Started server for service: " + service.getClass)
       )(system.dispatcher)
     }
