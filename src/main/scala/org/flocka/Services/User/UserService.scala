@@ -9,7 +9,6 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import org.flocka.ServiceBasics._
 import org.flocka.Services.User.UserServiceComs._
-
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
