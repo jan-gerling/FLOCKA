@@ -7,7 +7,7 @@ import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStor
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import akka.pattern.ask
-import org.flocka.ServiceBasics.{IdGenerator, IdManager}
+import org.flocka.ServiceBasics.{IdGenerator}
 import org.flocka.Services.User.{MockLoadbalancerService, UserService, UserSharding}
 import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
 
@@ -71,8 +71,12 @@ object SagaExecutionControllerTest extends App {
         logImportant("Sending saga to shardRegion")
         val testSaga: Saga = new Saga()
 
-        val payPostCondition = (x: HttpResponse) => x.entity.toString.contains("pays")
-        val decStockPostCondition = (x: HttpResponse) => x.entity.toString.contains("decreased")
+        val payPostCondition : Function1[String, Boolean] = new Function[String, Boolean] {
+          override def apply(v1: String): Boolean = return v1.contains("pay")
+        }
+        val decStockPostCondition : Function1[String, Boolean] = new Function[String, Boolean] {
+          override def apply(v1: String): Boolean = return v1.contains("decreased")
+        }
         val so1: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
         val so2: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
         val so3: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)

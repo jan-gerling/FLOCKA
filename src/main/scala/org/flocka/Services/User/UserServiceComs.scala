@@ -1,6 +1,6 @@
 package org.flocka.Services.User
 
-import org.flocka.ServiceBasics.{IdManager, MessageTypes}
+import org.flocka.ServiceBasics.{IdResolver, MessageTypes}
 
 /**
   * Define all allowed user service communications here. They have to comply to the CQRS scheme.
@@ -11,7 +11,7 @@ object UserServiceComs{
     POST - returns an ID
   */
   final case class CreateUser(userId: Long) extends MessageTypes.Command {
-    override val entityId: Long = IdManager.extractRepositoryId(userId)
+    override val entityId: Long = IdResolver.extractRepositoryId(userId)
     override val key: Long = userId
   }
   final case class UserCreated(userId: Long) extends MessageTypes.Event
@@ -21,7 +21,7 @@ object UserServiceComs{
     DELETE - return success/failure
   */
   final case class DeleteUser(userId: Long) extends MessageTypes.Command() {
-    override val entityId: Long = IdManager.extractRepositoryId(userId)
+    override val entityId: Long = IdResolver.extractRepositoryId(userId)
     override val key: Long = userId
   }
   final case class UserDeleted(userId: Long, success: Boolean) extends MessageTypes.Event()
@@ -31,7 +31,7 @@ object UserServiceComs{
     GET - returns the current credit of a user
   */
   final case class GetCredit(userId: Long) extends MessageTypes.Query{
-    override val entityId: Long = IdManager.extractRepositoryId(userId)
+    override val entityId: Long = IdResolver.extractRepositoryId(userId)
     override val key: Long = userId
   }
   final case class CreditGot(userId: Long, credit: Long) extends MessageTypes.Event
@@ -41,7 +41,7 @@ object UserServiceComs{
     POST - subtracts the amount from the credit of the user (e.g., to buy an order). Returns success or failure, depending on the credit status.
   */
   final case class SubtractCredit(userId: Long, amount: Long, operation: Long) extends MessageTypes.Command {
-    override val entityId: Long = IdManager.extractRepositoryId(userId)
+    override val entityId: Long = IdResolver.extractRepositoryId(userId)
     override val key: Long = userId
     override val operationId: Long = operation
   }
@@ -54,7 +54,7 @@ object UserServiceComs{
     POST - subtracts the amount from the credit of the user. Returns success or failure, depending on the credit status.
   */
   final case class AddCredit(userId: Long, amount: Long, operation: Long) extends MessageTypes.Command {
-    override val entityId: Long = IdManager.extractRepositoryId(userId)
+    override val entityId: Long = IdResolver.extractRepositoryId(userId)
     override val key: Long = userId
     override val operationId: Long = operation
   }

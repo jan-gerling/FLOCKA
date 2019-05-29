@@ -21,20 +21,13 @@ import scala.util.{Failure, Success}
   */
 object OrderService extends ServiceBase {
 
+  override val configName: String = "order-service.conf"
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "orders"
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
-  /**
-    * Starts the service
-    * @param shardRegion the region behind which the
-    * @param exposedPort the port in which to expose the service
-    * @param executor jeez idk,
-    * @param system the ActorSystem
-    * @return
-    */
-  def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
+  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
 
     val SECShardRegion: ActorRef = SagaExecutionControllerSharding.startSharding(system)

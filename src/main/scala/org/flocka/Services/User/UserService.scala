@@ -3,6 +3,7 @@ package org.flocka.Services.User
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
@@ -19,20 +20,13 @@ import scala.util.{Failure, Success}
   */
 object UserService extends ServiceBase{
 
+  override val configName: String = "user-service.conf"
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "users"
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
-  /**
-    * Starts the server
-    * @param shardRegion the region behind which the
-    * @param exposedPort the port in which to expose the service
-    * @param executor jeez idk,
-    * @param system the ActorSystem
-    * @return
-    */
-  def bind(shardRegion: ActorRef, exposedPort: Int, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
+  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
 
     /*
@@ -94,6 +88,16 @@ object UserService extends ServiceBase{
       }
     }
 
+    val getFindUserRoute: Route = {
+      pathPrefix(service / "find" / LongNumber) { userId ⇒
+        get {
+          pathEndOrSingleSlash {
+            redirect(service + "/credit/" + userId, StatusCodes.PermanentRedirect)
+          }
+        }
+      }
+    }
+
     val postSubtractCreditRoute: Route = {
       pathPrefix(service / "credit" / "subtract" / LongNumber / LongNumber / LongNumber.?) { (userId, amount, operationId) ⇒
         post {
@@ -120,7 +124,7 @@ object UserService extends ServiceBase{
       }
     }
 
-    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~
+    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute
       postSubtractCreditRoute ~ postAddCreditRoute
 
     implicit val materializer = ActorMaterializer()
