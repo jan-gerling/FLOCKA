@@ -22,13 +22,13 @@ object StockRepository {
 /**
   * Hold the current state of the stock item here
   *
-  * @param itemId matches persistenceId and is the unique identifier for item and actor.
+  * @param itemId       matches persistenceId and is the unique identifier for item and actor.
   * @param availability is the currently available amaount of this stock item
- */
+  */
 
 case class StockState(itemId: Long,
                       availability: Long) {
-  def updated(event: MessageTypes.Event) : StockState = event match {
+  def updated(event: MessageTypes.Event): StockState = event match {
     case ItemCreated(itemId) =>
       copy(itemId = itemId, availability = 0)
     case AvailabilityIncreased(itemId, amount, true, _) =>
@@ -47,10 +47,10 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState], curre
       copy(stockItems += itemId -> new StockState(-1, -1).updated(event))
     case AvailabilityIncreased(itemId, _, true, operationId) =>
       doneOperations.push(operationId, event)
-      copy (stockItems += itemId -> stockItems.get(itemId).get.updated(event))
+      copy(stockItems += itemId -> stockItems.get(itemId).get.updated(event))
     case AvailabilityDecreased(itemId, _, true, operationId) =>
       doneOperations.push(operationId, event)
-      copy (stockItems += itemId -> stockItems.get(itemId).get.updated(event))
+      copy(stockItems += itemId -> stockItems.get(itemId).get.updated(event))
     case _ => throw new IllegalArgumentException(event.toString + " is not a valid event for StockActor.")
   }
 }
@@ -59,7 +59,7 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState], curre
   * Actor storing the current state of a stock item
   * All valid commands / queries for stock items are resolved here and then sent back to the requesitng actor (supposed to be StockService via StockActorSupervisor
   */
-class StockRepository extends PersistentActorBase{
+class StockRepository extends PersistentActorBase {
   override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
   val config: Config = ConfigFactory.load("stock-service.conf")
@@ -107,11 +107,11 @@ class StockRepository extends PersistentActorBase{
     request match {
       case CreateItem(itemId) =>
         if (getStockState(itemId).isDefined)
-          throw new InvalidStockException ("Stock of item itd " + itemId + " Already exists.")
+          throw new InvalidStockException("Stock of item itd " + itemId + " Already exists.")
         else
           return true
       case DecreaseAvailability(itemId, amount, _) =>
-        val stockState = getStockState(itemId).getOrElse(throw new InvalidStockException ("Stock does not exist."))
+        val stockState = getStockState(itemId).getOrElse(throw new InvalidStockException("Stock does not exist."))
         return stockState.availability >= amount
       case _ => getStockState(request.key).isDefined
     }

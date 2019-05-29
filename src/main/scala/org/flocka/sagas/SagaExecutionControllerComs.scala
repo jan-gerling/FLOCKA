@@ -1,26 +1,26 @@
 package org.flocka.sagas
 
-import akka.actor.{ActorPath, ActorRef}
+import akka.actor.{ActorPath}
 import org.flocka.ServiceBasics.MessageTypes
 import org.flocka.ServiceBasics.MessageTypes.Event
 
 object SagaExecutionControllerComs {
 
 
-  final case class LoadSaga(sagaId: Long, saga: Saga) extends MessageTypes.Command {
+  final case class LoadSaga(sagaId: Long, saga: Saga, operation: Long) extends MessageTypes.Command {
     val entityId: Long = sagaId
     override val key: Long = sagaId
   }
 
-  final case class Execute(sagaId: Long) extends MessageTypes.Command {
+  final case class Execute(sagaId: Long, operation: Long) extends MessageTypes.Command {
     val entityId: Long = sagaId
     override val key: Long = sagaId
   }
 
 
-  case class SagaLoaded(saga: Saga, requesterPath: ActorPath) extends Event
+  case class SagaLoaded(saga: Saga, requesterPath: ActorPath, operation: Long) extends Event
 
-  case class Executing() extends Event
+  case class Executing(operation: Long) extends Event
 
   case class StepCompleted(newStep: Int) extends Event
 

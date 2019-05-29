@@ -1,14 +1,13 @@
 package org.flocka.sagas
 
 import akka.actor.{ActorIdentity, ActorPath, ActorSystem, Identify, Props}
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.http.scaladsl.model.HttpResponse
+import akka.cluster.sharding.{ClusterSharding}
 import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStore}
 import akka.util.Timeout
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ConfigFactory}
 import akka.pattern.ask
 import org.flocka.ServiceBasics.{IdGenerator}
-import org.flocka.Services.User.{MockLoadbalancerService, UserService, UserSharding}
+import org.flocka.Services.User.{MockLoadbalancerService}
 import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
 
 import scala.concurrent.ExecutionContext
@@ -71,10 +70,10 @@ object SagaExecutionControllerTest extends App {
         logImportant("Sending saga to shardRegion")
         val testSaga: Saga = new Saga()
 
-        val payPostCondition : Function1[String, Boolean] = new Function[String, Boolean] {
+        val payPostCondition: Function1[String, Boolean] = new Function[String, Boolean] {
           override def apply(v1: String): Boolean = return v1.contains("pay")
         }
-        val decStockPostCondition : Function1[String, Boolean] = new Function[String, Boolean] {
+        val decStockPostCondition: Function1[String, Boolean] = new Function[String, Boolean] {
           override def apply(v1: String): Boolean = return v1.contains("decreased")
         }
         val so1: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
@@ -98,8 +97,8 @@ object SagaExecutionControllerTest extends App {
         val secShard = ClusterSharding(system).shardRegion(SagaExecutionControllerSharding.shardName)
         val idGenerator: IdGenerator = new IdGenerator()
         val id: Long = idGenerator.generateId(100)
-        secShard ! LoadSaga(id, testSaga)
-        secShard ! Execute(id)
+        secShard ! LoadSaga(id, testSaga, 5)
+        secShard ! Execute(id, 5)
 
       }
     }
