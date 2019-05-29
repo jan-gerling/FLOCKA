@@ -3,6 +3,7 @@ package org.flocka.Services.User
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
@@ -94,6 +95,16 @@ object UserService extends ServiceBase{
       }
     }
 
+    val getFindUserRoute: Route = {
+      pathPrefix(service / "find" / LongNumber) { userId ⇒
+        get {
+          pathEndOrSingleSlash {
+            redirect(service + "/credit/" + userId, StatusCodes.PermanentRedirect)
+          }
+        }
+      }
+    }
+
     val postSubtractCreditRoute: Route = {
       pathPrefix(service / "credit" / "subtract" / LongNumber / LongNumber / LongNumber.?) { (userId, amount, operationId) ⇒
         post {
@@ -120,7 +131,7 @@ object UserService extends ServiceBase{
       }
     }
 
-    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~
+    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute
       postSubtractCreditRoute ~ postAddCreditRoute
 
     implicit val materializer = ActorMaterializer()
