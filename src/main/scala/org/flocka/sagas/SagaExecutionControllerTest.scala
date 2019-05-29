@@ -8,14 +8,11 @@ import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import akka.pattern.ask
 import org.flocka.ServiceBasics.{IdGenerator, IdManager}
-import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.Services.User.{MockLoadbalancerService, UserService, UserSharding}
 import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
-import sun.java2d.xr.XIDGenerator
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.{Failure, Success}
 
 
 object SagaExecutionControllerTest extends App {
@@ -59,8 +56,8 @@ object SagaExecutionControllerTest extends App {
 
 
       //Journal is currently leveldb, it is used to persist events of PersistentActors
-      val pathToJournal : ActorPath =  ActorPath.fromString("akka.tcp://" + config.getString("clustering.cluster.name")+ "@"+config.getString("akka.remote.netty.tcp.hostname")+":2571/user/store")
-      startupSharedJournal(system, startStore = (port == "2571"), path =pathToJournal)(system.dispatcher)
+      val pathToJournal: ActorPath = ActorPath.fromString("akka.tcp://" + config.getString("clustering.cluster.name") + "@" + config.getString("akka.remote.netty.tcp.hostname") + ":2571/user/store")
+      startupSharedJournal(system, startStore = (port == "2571"), path = pathToJournal)(system.dispatcher)
 
 
       //Start sharding system locally, this will create a ShardingRegion
@@ -68,14 +65,14 @@ object SagaExecutionControllerTest extends App {
 
       //sleep needed for proper boot of "cluster"
       Thread.sleep(5000)
-      if(port == "2572"){
+      if (port == "2572") {
         attemptStartRest()
         Thread.sleep(2000)
         logImportant("Sending saga to shardRegion")
         val testSaga: Saga = new Saga()
 
-        val payPostCondition = (x : HttpResponse) => x.entity.toString.contains("pays")
-        val decStockPostCondition = (x : HttpResponse) => x.entity.toString.contains("decreased")
+        val payPostCondition = (x: HttpResponse) => x.entity.toString.contains("pays")
+        val decStockPostCondition = (x: HttpResponse) => x.entity.toString.contains("decreased")
         val so1: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
         val so2: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
         val so3: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
@@ -96,20 +93,20 @@ object SagaExecutionControllerTest extends App {
 
         val secShard = ClusterSharding(system).shardRegion(SagaExecutionControllerSharding.shardName)
         val idGenerator: IdGenerator = new IdGenerator()
-        val id : Long = idGenerator.generateId(100)
+        val id: Long = idGenerator.generateId(100)
         secShard ! LoadSaga(id, testSaga)
-         secShard ! Execute(id)
+        secShard ! Execute(id)
 
       }
     }
 
 
-
   }
+
   def attemptStartRest()(implicit system: ActorSystem): Unit = {
-      //Start rest service
-      MockLoadbalancerService.bind( 8080, system.dispatcher).onComplete(
-        Success => logImportant("Started server!")
-      )(system.dispatcher)
+    //Start rest service
+    MockLoadbalancerService.bind(8080, system.dispatcher).onComplete(
+      Success => logImportant("Started server!")
+    )(system.dispatcher)
   }
 }

@@ -21,7 +21,7 @@ object ServiceStart {
       implicit val system = ActorSystem(shardStrategy.clusterName, config)
 
       //Journal is currently leveldb, it is used to persist events of PersistentActors
-      val pathToJournal : ActorPath =  ActorPath.fromString("akka.tcp://" + shardStrategy.clusterName + "@" + shardStrategy.hostName + ":" + port + "/user/store")
+      val pathToJournal : ActorPath =  ActorPath.fromString("akka.tcp://" + shardStrategy.clusterName + "@" + shardStrategy.hostName + ":" + shardStrategy.publicSeedPort + "/user/store")
       startupSharedJournal(system, startStore = port == shardStrategy.publicSeedPort, path =pathToJournal, service)(system.dispatcher)
 
       //Start sharding system locally, this will create a ShardingRegion

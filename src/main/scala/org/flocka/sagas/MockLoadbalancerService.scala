@@ -44,8 +44,9 @@ object MockLoadbalancerService {
         parameter('operationId.?) { operationId =>
           post {
             pathEndOrSingleSlash {
-              println("A")
+              Thread.sleep(1500)
 
+              println("A")
               if (happy) {
                 complete("User  " + userId + " pays for " + orderId)
               }
@@ -54,7 +55,7 @@ object MockLoadbalancerService {
                   paymentsDone += 1
 
                   complete("User  " + userId + " pays for " + orderId)
-                }else {
+                } else {
                   paymentsDone += 1
 
                   complete("Failed")
@@ -84,16 +85,15 @@ object MockLoadbalancerService {
         parameter('operationId.?) { operationId =>
           post {
             pathEndOrSingleSlash {
-              //Thread.sleep(6000)
               println("C")
               if (happy) {
                 complete("Stock decreased by " + amount)
-              }else {
-                if(decreaseStocksDone % 3 != 2) {
+              } else {
+                if (decreaseStocksDone % 3 != 2) {
                   decreaseStocksDone += 1
 
                   complete("Stock decreased by " + amount)
-                }else{
+                } else {
                   decreaseStocksDone += 1
 
                   complete("Failed")

@@ -1,8 +1,12 @@
 package org.flocka.sagas
+
+import java.util.UUID.randomUUID
+
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import java.util.concurrent
 import java.util.concurrent.CopyOnWriteArrayList
+
 /**
   * A saga is a directed acyclic graph of operations to be executed according to the SAGA protocol
   *
@@ -12,7 +16,11 @@ import java.util.concurrent.CopyOnWriteArrayList
   * Did not choose to perform builder pattern as these are hard to implement safely in scala
   */
 case class Saga() {
-  val dagOfOps: CopyOnWriteArrayList[CopyOnWriteArrayList[SagaOperation]] =  new CopyOnWriteArrayList( )
+  lazy val rng = new scala.util.Random(System.currentTimeMillis())
+  lazy val forwardId = rng.nextLong()
+  lazy val backwardId = rng.nextLong()
+
+  val dagOfOps: CopyOnWriteArrayList[CopyOnWriteArrayList[SagaOperation]] = new CopyOnWriteArrayList()
   dagOfOps.add(new CopyOnWriteArrayList())
 
   def addConcurrentOperation(sagaOp: SagaOperation) = {
@@ -20,10 +28,10 @@ case class Saga() {
   }
 
   def addSequentialOperation(sagaOp: SagaOperation) = {
-    val newList:  CopyOnWriteArrayList[SagaOperation] = new CopyOnWriteArrayList()
+    val newList: CopyOnWriteArrayList[SagaOperation] = new CopyOnWriteArrayList()
     newList.add(sagaOp)
 
-   dagOfOps.add(newList)
+    dagOfOps.add(newList)
   }
 }
 

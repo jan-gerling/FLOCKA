@@ -1,14 +1,16 @@
 package org.flocka.sagas
 
-import akka.actor.{ActorLogging, ActorRef, ActorSystem, PoisonPill, Props, ReceiveTimeout}
+import java.util.concurrent.TimeoutException
+
+import akka.actor.{ActorLogging, ActorPath, ActorRef, ActorSystem, PoisonPill, Props, ReceiveTimeout}
 import akka.cluster.sharding.ShardRegion
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
 import akka.persistence.{PersistentActor, RecoveryCompleted, SnapshotOffer}
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
@@ -16,7 +18,7 @@ import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentAc
 import org.flocka.ServiceBasics.MessageTypes.{Command, Event, Query}
 import org.flocka.Services.User.{UserRepositoryState, UserState}
 import org.flocka.Utils.{PushOutBuffer, PushOutHashmapQueueBuffer, PushOutQueueBuffer}
-import org.flocka.sagas.SagaExecutionControllerComs.{Execute, Executing, LoadSaga, RollbackStarted, SagaAborted, SagaCompleted, SagaLoaded, StepCompleted, StepRollbackCompleted}
+import org.flocka.sagas.SagaExecutionControllerComs.{Execute, Executing, LoadSaga, SagaAborted, SagaCompleted, SagaLoaded, StepCompleted, StepFailed, StepRollbackCompleted}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success}
@@ -30,52 +32,52 @@ object SagaExecutionControllerSMState extends Enumeration {
 }
 
 object SagasExecutionControllerActor {
-  val MAX_NUM_TRIES = 5
-
-
   def props(): Props = Props(new SagasExecutionControllerActor())
 }
 
-case class SagaExecutionControllerState(saga: Saga, concurrentOperationsIndex: Int, state: SagaExecutionControllerSMState.Value, entityId: Long, requester: ActorRef) extends PersistentActorState {
+case class SagaExecutionControllerState(saga: Saga, concurrentOperationsIndex: Int, state: SagaExecutionControllerSMState.Value, entityId: Long, requesterPath: ActorPath) extends PersistentActorState {
 
   override var doneOperations = new PushOutHashmapQueueBuffer[Long, Event](0)
 
   def updated(event: Event): SagaExecutionControllerState = event match {
-    case SagaLoaded(saga: Saga, cmdRequester: ActorRef) =>
-      copy(saga, 0, SagaExecutionControllerSMState.STATE_GO, entityId, cmdRequester)
+    case SagaLoaded(saga: Saga, requesterPath: ActorPath) =>
+      copy(saga, 0, SagaExecutionControllerSMState.STATE_GO, entityId, requesterPath)
     case Executing() =>
-      copy(saga, concurrentOperationsIndex, state, entityId, requester)
+      copy(saga, concurrentOperationsIndex, state, entityId, requesterPath)
     case StepRollbackCompleted(step: Int) =>
-      copy(saga, step -1, state, entityId, requester)
+      copy(saga, step - 1, state, entityId, requesterPath)
     case StepCompleted(step: Int) =>
-      copy(saga, step + 1, state, entityId, requester)
+      copy(saga, step + 1, state, entityId, requesterPath)
     case SagaCompleted() =>
-      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC, entityId, requester)
-    case RollbackStarted() =>
-      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_ROLLBACK, entityId, requester)
+      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC, entityId, requesterPath)
+    case StepFailed() =>
+      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_ROLLBACK, entityId, requesterPath)
     case SagaAborted() =>
-      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL, entityId, requester)
+      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL, entityId, requesterPath)
   }
 
 }
 
 class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogging {
-  override var state: PersistentActorState = new SagaExecutionControllerState(new Saga(), 0, SagaExecutionControllerSMState.STATE_PRE_EXEC, 0L, self) // For some reason i cant use _, if someone knows a fix, please tell
-  val config : Config = ConfigFactory.load("saga-execution-controller.conf")
+  override var state: PersistentActorState = new SagaExecutionControllerState(new Saga(), 0, SagaExecutionControllerSMState.STATE_PRE_EXEC, 0L, self.path) // For some reason i cant use _, if someone knows a fix, please tell
+  val config: Config = ConfigFactory.load("saga-execution-controller.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
   val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
   val loadBalancerURI = config.getString("clustering.loadbalancer.uri")
-
+  val MAX_NUM_TIMEOUTS_ALLOWED = config.getInt("saga-execution-controller.max-num-timeouts-allowed")
+  val connectionTimeout: Int = config.getInt("saga-execution-controller.connection-timeout")
+  val maxConnectionTimeout: Int = config.getInt("saga-execution-controller.max-connection-timeout")
   context.setReceiveTimeout(passivateTimeout)
   val system = context.system
-
 
 
   def updateState(event: MessageTypes.Event): Unit =
     state = state.updated(event)
 
   val receiveRecover: Receive = {
-    case evt: MessageTypes.Event => {updateState(evt)}
+    case evt: MessageTypes.Event => {
+      updateState(evt)
+    }
     case RecoveryCompleted =>
       execute()
     case SnapshotOffer(_, snapshot: SagaExecutionControllerState) => state = snapshot
@@ -88,13 +90,13 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     }
   }
 
-  def buildResponseEvent(request: MessageTypes.Request, requester: ActorRef): Event = {
+  def buildResponseEvent(request: MessageTypes.Request, requesterPath: ActorPath): Event = {
     if (validateState(request) == false) {
       sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidUserException(request.key.toString + ": A saga needs to be loaded, before it may be executed!"))
     }
     request match {
       case LoadSaga(entityId: Long, saga: Saga) =>
-        return SagaLoaded(saga, requester)
+        return SagaLoaded(saga, requesterPath)
       case Execute(entityId: Long) =>
         return Executing()
       case _ => throw new IllegalArgumentException(request.toString)
@@ -104,20 +106,19 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
       case Execute(_) =>
-        if(getSagaExecutionControllerState().state == SagaExecutionControllerSMState.STATE_GO)
-          return true
-        else
-          return false
+        return getSagaExecutionControllerState().state == SagaExecutionControllerSMState.STATE_GO
       case _ => return true
     }
   }
 
   // I override this just so it compiles (since i need to override buildResponseEvent
-  override def buildResponseEvent(request: MessageTypes.Request): Event = {throw new UnsupportedOperationException("buildResponseEvent(Request) of SagaExecutionController shouldnt have been called.")}
+  override def buildResponseEvent(request: MessageTypes.Request): Event = {
+    throw new UnsupportedOperationException("buildResponseEvent(Request) of SagaExecutionController shouldnt have been called.")
+  }
 
   override val receiveCommand: Receive = {
     case command: MessageTypes.Command =>
-      sendPersistentResponse(buildResponseEvent(command, sender()))
+      sendPersistentResponse(buildResponseEvent(command, sender().path))
       command match {
         case Execute(_) =>
           execute()
@@ -127,7 +128,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
 
     case evt: MessageTypes.Event =>
-      //ignore
+    //ignore
 
     case value => throw new IllegalArgumentException(value.toString)
   }
@@ -138,46 +139,45 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     }
   }
 
-  def doForwardOperation(op: SagaOperation, currIndex: Int, numTries: Int): Unit = {
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(5 + Math.pow(2, numTries) - 1   seconds) //Exponential backoff waits 5, 6, 8, 12, 20 seconds
+  def doForwardOperation(op: SagaOperation, currIndex: Int, forwardId: Long, numTries: Int): Unit = {
+    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(connectionTimeout * (numTries + 1) seconds) //Exponential backoff waits 5, 6, 8, 12, 20 seconds
     val connectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
 
-    val finalUri: String = loadBalancerURI  + op.pathForward + "?operationId=" + op.id
+    val finalUri: String = loadBalancerURI + op.pathForward + "?operationId=" + forwardId
     val future: Future[HttpResponse] = Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri), settings = connectionPoolSettings)
+
     future.onComplete {
       case Success(res) =>
-        if (op.forwardSuccessfulCondition(res)) {
-          op.completed = true
-          op.success = true
-        } else {
-          op.completed = true
-          op.success = false
-          //Need to begin abort
-        }
+        if (op.forwardSuccessfulCondition(res))
+          op.state = OperationState.SUCCESS_NO_ROLLBACK
+        else
+          op.state = OperationState.FAILURE
+
       case Failure(exception) =>
-        if (exception.toString.contains("timeout")) {
-          if(numTries >= SagasExecutionControllerActor.MAX_NUM_TRIES ){
-            op.completed = true
-            op.success = false // This will cause an abort.
-          } else {
-            doForwardOperation(op, currIndex, numTries + 1) //recurr to try again
-          }
+        if (exception.isInstanceOf[TimeoutException]) {
+          if (numTries >= MAX_NUM_TIMEOUTS_ALLOWED)
+            op.state = OperationState.FAILURE;
+          else
+            doForwardOperation(op, currIndex, forwardId, numTries + 1) //recurr to try again
+
         }
     }
   }
 
-  def doBackwardOperation(op: SagaOperation, currIndex: Int, numTries: Int): Unit = {
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(5 + Math.min(Math.pow(2, numTries) - 1, 115)   seconds) //Exponential backoff waits 5, 6, 8, 12, 20, ... 120 seconds
+  def doBackwardOperation(op: SagaOperation, currIndex: Int, backwardId: Long, numTries: Int): Unit = {
+    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(Math.min(connectionTimeout * (numTries + 1), maxConnectionTimeout) seconds) //Exponential backoff waits 5, 6, 8, 12, 20 seconds
     val connectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
-    val finalUri: String = loadBalancerURI + op.pathInvert + "?operationId=" + op.backwardId
+
+    val finalUri: String = loadBalancerURI + op.pathInvert + "?operationId=" + backwardId
     val future: Future[HttpResponse] = Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri), settings = connectionPoolSettings)
+
     future.onComplete {
       case Success(res) =>
-        op.invertCompleted = true
+        op.state = OperationState.SUCCESS_ROLLEDBACK
       case Failure(exception) =>
-        if (exception.toString.contains("timeout")) {
-          //recurr to try again // Using exponential backoff to hopefully deal with failures
-          doBackwardOperation(op, currIndex, numTries + 1)
+        if (exception.isInstanceOf[TimeoutException]) {
+          //recurr to try again // Using linear backoff to hopefully deal with failures
+          doBackwardOperation(op, currIndex, backwardId, numTries + 1)
         }
     }
 
@@ -187,60 +187,69 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     var currIndex = getSagaExecutionControllerState().concurrentOperationsIndex
     var state = getSagaExecutionControllerState().state
 
-    if (state == SagaExecutionControllerSMState.STATE_PRE_EXEC || state ==  SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL || state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC ){
+    if (state == SagaExecutionControllerSMState.STATE_PRE_EXEC || state == SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL || state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC) {
       return
     }
-    var opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(currIndex)
 
+    var opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(currIndex)
     var finished = false
+    val forwardId: Long = getSagaExecutionControllerState().saga.forwardId
+    val backwardId: Long = getSagaExecutionControllerState().saga.backwardId
 
     while (!finished) {
       opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(currIndex)
 
       if (state == SagaExecutionControllerSMState.STATE_GO) {
         for (op <- opsAtIndex.asScala) {
-          if (!op.completed)
-            doForwardOperation(op, currIndex,0)
+          if (op.state == OperationState.UNPERFORMED)
+            doForwardOperation(op, currIndex, forwardId, 0)
         }
-        while(opsAtIndex.asScala.exists(op => !op.completed)) {Thread.sleep(50)}
-        if(opsAtIndex.asScala.forall(op =>  op.success)) {
+
+        while (opsAtIndex.asScala.exists(op => op.state == OperationState.UNPERFORMED)) {
+          Thread.sleep(50)
+        }
+
+        if (opsAtIndex.asScala.forall(op => op.state == OperationState.SUCCESS_NO_ROLLBACK)) {
           persistForSelf(StepCompleted(currIndex))
           currIndex += 1
-          if(currIndex == getSagaExecutionControllerState().saga.dagOfOps.asScala.length)
+          if (currIndex == getSagaExecutionControllerState().saga.dagOfOps.asScala.length)
             finished = true
-        } else {
-          persistForSelf(RollbackStarted())
-          state =  SagaExecutionControllerSMState.STATE_ROLLBACK
+        } else { //If any of them are FAILURE
+          persistForSelf(StepFailed())
+          state = SagaExecutionControllerSMState.STATE_ROLLBACK
         }
-      } else if (state == SagaExecutionControllerSMState.STATE_ROLLBACK) {
 
+      } else if (state == SagaExecutionControllerSMState.STATE_ROLLBACK) {
         for (op <- opsAtIndex.asScala) {
-          if (op.completed && op.success && !op.invertCompleted) {
-            doBackwardOperation(op, currIndex,0)
-          }else if(!op.completed) {
-            doForwardOperation(op, currIndex,0)
-            while(!op.completed){Thread.sleep(50)}
-            if(op.success) {
-              doBackwardOperation(op, currIndex,0)
+          if (op.state == OperationState.SUCCESS_NO_ROLLBACK) {
+            doBackwardOperation(op, currIndex, backwardId, 0)
+          } else if (op.state == OperationState.UNPERFORMED) {
+            doForwardOperation(op, currIndex, forwardId, 0)
+            while (op.state == OperationState.UNPERFORMED) {
+              Thread.sleep(50)
             }
-          }else {
-            op.invertCompleted = true //if op completed but not success. aka the one that triggered rollback
+            if (op.state == OperationState.SUCCESS_NO_ROLLBACK) {
+              doBackwardOperation(op, currIndex, backwardId, 0)
+            }
+          } else {
+            op.state = OperationState.SUCCESS_ROLLEDBACK //if op completed but not success. aka the one that triggered rollback
           }
         }
-        while(opsAtIndex.asScala.exists(op => !op.invertCompleted)) {Thread.sleep(50)}
+        while (opsAtIndex.asScala.exists(op => op.state == OperationState.UNPERFORMED || op.state == OperationState.SUCCESS_NO_ROLLBACK)) {
+          Thread.sleep(50)
+        }
         persistForSelf(StepRollbackCompleted(currIndex))
         currIndex -= 1
-        if(currIndex == -1)
+        if (currIndex == -1)
           finished = true
       }
-      while(opsAtIndex.asScala.exists(op => !op.completed)) {Thread.sleep(50)}
-
     }
-    if(state == SagaExecutionControllerSMState.STATE_GO) {
-      getSagaExecutionControllerState().requester ! SagaCompleted()
+
+    if (state == SagaExecutionControllerSMState.STATE_GO) {
+      context.actorSelection(getSagaExecutionControllerState().requesterPath) ! SagaCompleted()
       persistForSelf(SagaCompleted())
-    }else {
-      getSagaExecutionControllerState().requester ! SagaAborted()
+    } else {
+      context.actorSelection(getSagaExecutionControllerState().requesterPath) ! SagaAborted()
       persistForSelf(SagaAborted())
     }
   }
