@@ -40,25 +40,22 @@ object MockLoadbalancerService {
 
 
     val postPayPaymentRoute: Route = {
-      pathPrefix(service / "pay" / LongNumber / LongNumber) { (userId, orderId) ⇒
-        parameter('operationId.?) { operationId =>
-          post {
-            pathEndOrSingleSlash {
+      pathPrefix(service / "pay" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
+        post {
+          pathEndOrSingleSlash {
+            println("A")
+            if (happy) {
+              complete("User  " + userId + " pays for " + orderId)
+            }
+            else {
+              if (paymentsDone % 3 != 2) {
+                paymentsDone += 1
 
-              println("A")
-              if (happy) {
                 complete("User  " + userId + " pays for " + orderId)
-              }
-              else {
-                if (paymentsDone % 3 != 2) {
-                  paymentsDone += 1
+              } else {
+                paymentsDone += 1
 
-                  complete("User  " + userId + " pays for " + orderId)
-                } else {
-                  paymentsDone += 1
-
-                  complete("Failed")
-                }
+                complete("Failed")
               }
             }
           }
@@ -67,36 +64,32 @@ object MockLoadbalancerService {
     }
 
     val postCancelPaymentRoute: Route = {
-      pathPrefix(service / "cancelPayment" / LongNumber / LongNumber) { (userId, orderId) ⇒
-        parameter('operationId.?) { operationId =>
-          println("B")
-          post {
-            pathEndOrSingleSlash {
-              complete("User  " + userId + " cancels payment for " + orderId)
-            }
+      pathPrefix(service / "cancelPayment" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
+        println("B")
+        post {
+          pathEndOrSingleSlash {
+            complete("User  " + userId + " cancels payment for " + orderId)
           }
         }
       }
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service / "subtract" / LongNumber / LongNumber) { (itemId, amount) ⇒
-        parameter('operationId.?) { operationId =>
-          post {
-            pathEndOrSingleSlash {
-              println("C")
-              if (happy) {
+      pathPrefix(service / "subtract" / LongNumber / LongNumber / LongNumber.?) { (itemId, amount, operationId) ⇒
+        post {
+          pathEndOrSingleSlash {
+            println("C")
+            if (happy) {
+              complete("Stock decreased by " + amount)
+            } else {
+              if (decreaseStocksDone % 3 != 2) {
+                decreaseStocksDone += 1
+
                 complete("Stock decreased by " + amount)
               } else {
-                if (decreaseStocksDone % 3 != 2) {
-                  decreaseStocksDone += 1
+                decreaseStocksDone += 1
 
-                  complete("Stock decreased by " + amount)
-                } else {
-                  decreaseStocksDone += 1
-
-                  complete("Failed")
-                }
+                complete("Failed")
               }
             }
           }
@@ -105,13 +98,11 @@ object MockLoadbalancerService {
     }
 
     val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service / "add" / LongNumber / LongNumber) { (itemId, amount) ⇒
-        parameter('operationId.?) { operationId =>
-          post {
-            pathEndOrSingleSlash {
-              println("D")
-              complete("Stock increased by " + amount)
-            }
+      pathPrefix(service / "add" / LongNumber / LongNumber / LongNumber.?) { (itemId, amount, operationId) ⇒
+        post {
+          pathEndOrSingleSlash {
+            println("D")
+            complete("Stock increased by " + amount)
           }
         }
       }

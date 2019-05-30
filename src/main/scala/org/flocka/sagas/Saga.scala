@@ -12,8 +12,8 @@ import java.util.concurrent.CopyOnWriteArrayList
   */
 case class Saga() {
   lazy val rng = new scala.util.Random(System.currentTimeMillis())
-  lazy val forwardId = rng.nextLong()
-  lazy val backwardId = rng.nextLong()
+  lazy val forwardId = Math.abs(rng.nextLong())
+  lazy val backwardId = Math.abs(rng.nextLong())
 
   val dagOfOps: CopyOnWriteArrayList[CopyOnWriteArrayList[SagaOperation]] = new CopyOnWriteArrayList()
   dagOfOps.add(new CopyOnWriteArrayList())

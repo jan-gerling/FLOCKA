@@ -5,7 +5,7 @@ import java.util.concurrent.TimeoutException
 import akka.actor.{ActorLogging, ActorPath, PoisonPill, Props, ReceiveTimeout}
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
 import akka.persistence.{PersistentActor, RecoveryCompleted, SnapshotOffer}
 
@@ -15,7 +15,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.ServiceBasics.MessageTypes.{Command, Event, Query}
 import org.flocka.Utils.{PushOutHashmapQueueBuffer, PushOutQueueBuffer}
-import org.flocka.sagas.SagaExecutionControllerComs.{Execute, Executing, LoadSaga, SagaAborted, SagaCompleted, SagaLoaded, StepCompleted, StepFailed, StepRollbackCompleted}
+import org.flocka.sagas.SagaExecutionControllerComs.{Execute, Executing, SagaAborted, SagaCompleted, StepCompleted, StepFailed, StepRollbackCompleted}
 
 import scala.util.{Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -35,16 +35,13 @@ case class SagaExecutionControllerState(saga: Saga, concurrentOperationsIndex: I
   override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = currentOperations
 
   def updated(event: Event): SagaExecutionControllerState = event match {
-    case SagaLoaded(saga: Saga, operationId) =>
+    case Executing(saga: Saga, operationId) =>
       doneOperations.push(operationId, event)
       copy(saga, 0, SagaExecutionControllerSMState.STATE_GO, entityId, currentOperations)
-    case Executing(operationId) =>
-      doneOperations.push(operationId, event)
-      copy(saga, concurrentOperationsIndex, state, entityId,  currentOperations)
     case StepRollbackCompleted(step: Int) =>
-      copy(saga, step - 1, state, entityId,currentOperations)
+      copy(saga, step - 1, state, entityId, currentOperations)
     case StepCompleted(step: Int) =>
-      copy(saga, step + 1, state, entityId,currentOperations)
+      copy(saga, step + 1, state, entityId, currentOperations)
     case SagaCompleted() =>
       copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC, entityId, currentOperations)
     case StepFailed() =>
@@ -60,16 +57,11 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   val config: Config = ConfigFactory.load("saga-execution-controller.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
   val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
-  val loadBalancerURI: String = config.getString("clustering.loadbalancer.uri")
   val maxNumTimeoutsAllowed: Int = config.getInt("saga-execution-controller.max-num-timeouts-allowed")
   val connectionTimeout: Int = config.getInt("saga-execution-controller.connection-timeout")
   val maxConnectionTimeout: Int = config.getInt("saga-execution-controller.max-connection-timeout")
   context.setReceiveTimeout(passivateTimeout)
   val system = context.system
-
-  //This needs to be global unfortunately. Persisted state is always behind on current events
-  var sm_state: SagaExecutionControllerSMState.Value = SagaExecutionControllerSMState.STATE_PRE_EXEC
-
 
   def updateState(event: MessageTypes.Event): Unit =
     state = state.updated(event)
@@ -92,22 +84,19 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
 
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
-      case Execute(_, _) =>
-        return getSagaExecutionControllerState().state == SagaExecutionControllerSMState.STATE_GO
-      case _ => return true
+      case Execute(_, saga, _) =>
+        return saga.dagOfOps.size() != 0 && saga.dagOfOps.get(0).size() != 0
     }
+    return true
   }
 
-  // I override this just so it compiles (since i need to override buildResponseEvent, but I also need to give it the ActorPath)
   override def buildResponseEvent(request: MessageTypes.Request): Event = {
     if (validateState(request) == false) {
       sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidSagaException(request.entityId.toString))
     }
     request match {
-      case LoadSaga(entityId: Long, saga: Saga, operationId: Long) =>
-        return SagaLoaded(saga, operationId)
-      case Execute(entityId: Long, operationId: Long) =>
-        if(sm_state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC)
+      case Execute(entityId: Long, saga: Saga, operationId: Long) =>
+        if (getSagaExecutionControllerState().state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC)
           return SagaCompleted()
         else {
           return SagaAborted()
@@ -124,7 +113,8 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
       request match {
         case command: MessageTypes.Command =>
           command match {
-            case Execute(_, _) =>
+            case Execute(_, saga, operation) =>
+              persistForSelf(Executing(saga, operation))
               execute()
               sendPersistentResponse(buildResponseEvent(command))
             case _ =>
@@ -136,16 +126,15 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   }
 
   def persistForSelf(evt: Event): Unit = {
-    persist(evt) { event =>
-      updateState(event)
-    }
+    persist(evt) { evt => }
+    updateState(evt) //dont wait for persist to finish to update state. persist lags behind current state
   }
 
   def doForwardOperation(op: SagaOperation, currIndex: Int, forwardId: Long, numTries: Int): Unit = {
     val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(connectionTimeout * (numTries + 1) seconds)
     val connectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
 
-    val finalUri: String = loadBalancerURI + op.pathForward + "?operationId=" + forwardId
+    val finalUri: Uri = op.pathForward + "/" + forwardId
     val future: Future[HttpResponse] = Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri), settings = connectionPoolSettings)
 
     future.onComplete {
@@ -170,7 +159,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(Math.min(connectionTimeout * (numTries + 1), maxConnectionTimeout) seconds) //Exponential backoff waits 5, 6, 8, 12, 20 seconds
     val connectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
 
-    val finalUri: String = loadBalancerURI + op.pathInvert + "?operationId=" + backwardId
+    val finalUri: Uri = op.pathInvert + "/" + backwardId
     val future: Future[HttpResponse] = Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri), settings = connectionPoolSettings)
 
     future.onComplete {
@@ -178,33 +167,29 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
         op.state = OperationState.SUCCESS_ROLLEDBACK
       case Failure(exception) =>
         if (exception.isInstanceOf[TimeoutException]) {
-          //recurr to try again // Using linear backoff to hopefully deal with failures
-          doBackwardOperation(op, currIndex, backwardId, numTries + 1)
+            doBackwardOperation(op, currIndex, backwardId, numTries + 1) //recur to try again
         }
     }
 
   }
 
   def execute(): Unit = {
-    var currIndex = getSagaExecutionControllerState().concurrentOperationsIndex
-    sm_state = getSagaExecutionControllerState().state
+    var sm_state = getSagaExecutionControllerState().state
 
     if (sm_state == SagaExecutionControllerSMState.STATE_PRE_EXEC || sm_state == SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL || sm_state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC) {
       return
     }
 
-    var opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(currIndex)
     var finished = false
     val forwardId: Long = getSagaExecutionControllerState().saga.forwardId
     val backwardId: Long = getSagaExecutionControllerState().saga.backwardId
 
     while (!finished) {
-      opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(currIndex)
-
-      if (sm_state == SagaExecutionControllerSMState.STATE_GO) {
+      val opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(getSagaExecutionControllerState().concurrentOperationsIndex)
+      if (getSagaExecutionControllerState().state == SagaExecutionControllerSMState.STATE_GO) {
         for (op <- opsAtIndex.asScala) {
           if (op.state == OperationState.UNPERFORMED)
-            doForwardOperation(op, currIndex, forwardId, 0)
+            doForwardOperation(op, getSagaExecutionControllerState().concurrentOperationsIndex, forwardId, 0)
         }
 
         while (opsAtIndex.asScala.exists(op => op.state == OperationState.UNPERFORMED)) {
@@ -212,26 +197,24 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
         }
 
         if (opsAtIndex.asScala.forall(op => op.state == OperationState.SUCCESS_NO_ROLLBACK)) {
-          persistForSelf(StepCompleted(currIndex))
-          currIndex += 1
-          if (currIndex == getSagaExecutionControllerState().saga.dagOfOps.asScala.length)
+          persistForSelf(StepCompleted(getSagaExecutionControllerState().concurrentOperationsIndex))
+          if (getSagaExecutionControllerState().concurrentOperationsIndex == getSagaExecutionControllerState().saga.dagOfOps.asScala.length)
             finished = true
         } else { //If any of them are FAILURE
           persistForSelf(StepFailed())
-          sm_state = SagaExecutionControllerSMState.STATE_ROLLBACK
         }
 
-      } else if (sm_state == SagaExecutionControllerSMState.STATE_ROLLBACK) {
+      } else {
         for (op <- opsAtIndex.asScala) {
           if (op.state == OperationState.SUCCESS_NO_ROLLBACK) {
-            doBackwardOperation(op, currIndex, backwardId, 0)
+            doBackwardOperation(op, getSagaExecutionControllerState().concurrentOperationsIndex, backwardId, 0)
           } else if (op.state == OperationState.UNPERFORMED) {
-            doForwardOperation(op, currIndex, forwardId, 0)
+            doForwardOperation(op, getSagaExecutionControllerState().concurrentOperationsIndex, forwardId, 0)
             while (op.state == OperationState.UNPERFORMED) {
               Thread.sleep(50)
             }
             if (op.state == OperationState.SUCCESS_NO_ROLLBACK) {
-              doBackwardOperation(op, currIndex, backwardId, 0)
+              doBackwardOperation(op, getSagaExecutionControllerState().concurrentOperationsIndex, backwardId, 0)
             }
           } else {
             op.state = OperationState.SUCCESS_ROLLEDBACK //if op completed but not success. aka the one that triggered rollback
@@ -240,19 +223,16 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
         while (opsAtIndex.asScala.exists(op => op.state == OperationState.UNPERFORMED || op.state == OperationState.SUCCESS_NO_ROLLBACK)) {
           Thread.sleep(50)
         }
-        persistForSelf(StepRollbackCompleted(currIndex))
-        currIndex -= 1
-        if (currIndex == -1)
+        persistForSelf(StepRollbackCompleted(getSagaExecutionControllerState().concurrentOperationsIndex))
+        if (getSagaExecutionControllerState().concurrentOperationsIndex == -1)
           finished = true
       }
     }
 
-    if (sm_state == SagaExecutionControllerSMState.STATE_GO) {
-      sm_state = SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC
-      persistForSelf(SagaCompleted())
+    if (getSagaExecutionControllerState().state == SagaExecutionControllerSMState.STATE_GO) {
+      updateState(SagaCompleted())
     } else {
-      sm_state = SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL
-      persistForSelf(SagaAborted())
+      updateState(SagaAborted())
     }
   }
 

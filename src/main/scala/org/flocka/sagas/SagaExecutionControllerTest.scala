@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import akka.pattern.ask
 import org.flocka.ServiceBasics.IdGenerator
 import org.flocka.Services.User.MockLoadbalancerService
-import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
+import org.flocka.sagas.SagaExecutionControllerComs.{Execute}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -69,7 +69,7 @@ object SagaExecutionControllerTest extends App {
       Thread.sleep(5000)
       if (port == "2572") {
         attemptStartRest()
-        Thread.sleep(2000)
+        Thread.sleep(3000)
         logImportant("Sending saga to shardRegion")
         val testSaga: Saga = new Saga()
 
@@ -79,12 +79,12 @@ object SagaExecutionControllerTest extends App {
         val decStockPostCondition: Function1[String, Boolean] = new Function[String, Boolean] {
           override def apply(v1: String): Boolean = return v1.contains("decreased")
         }
-        val so1: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
-        val so2: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
-        val so3: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
+        val so1: SagaOperation = new SagaOperation("http://localhost:8080/lb/pay/1/1", "http://localhost:8080/lb/cancelPayment/1/1", payPostCondition)
+        val so2: SagaOperation = new SagaOperation("http://localhost:8080/lb/subtract/1/1", "http://localhost:8080/lb/add/1/1", decStockPostCondition)
+        val so3: SagaOperation = new SagaOperation("http://localhost:8080/lb/subtract/1/1", "http://localhost:8080/lb/add/1/1", decStockPostCondition)
 
-        val so4: SagaOperation = new SagaOperation("/lb/pay/1/1", "/lb/cancelPayment/1/1", payPostCondition)
-        val so5: SagaOperation = new SagaOperation("/lb/subtract/1/1", "/lb/add/1/1", decStockPostCondition)
+        val so4: SagaOperation = new SagaOperation("http://localhost:8080/lb/pay/1/1", "http://localhost:8080/lb/cancelPayment/1/1", payPostCondition)
+        val so5: SagaOperation = new SagaOperation("http://localhost:8080/lb/subtract/1/1", "http://localhost:8080/lb/add/1/1", decStockPostCondition)
 
         testSaga.addConcurrentOperation(so1)
         testSaga.addConcurrentOperation(so2)
@@ -100,9 +100,8 @@ object SagaExecutionControllerTest extends App {
         val secShard = ClusterSharding(system).shardRegion(SagaExecutionControllerSharding.shardName)
         val idGenerator: IdGenerator = new IdGenerator()
         val id: Long = idGenerator.generateId(100)
-        secShard ! LoadSaga(id, testSaga, 5)
         val t0: Long = System.nanoTime()
-        val futureSaga = secShard ? Execute(id, 6)
+        val futureSaga = secShard ? Execute(id,testSaga, 4)
         futureSaga.onComplete{
           case Success(value) =>
             val elapsedTime: Double = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0)
@@ -111,8 +110,6 @@ object SagaExecutionControllerTest extends App {
 
       }
     }
-
-
   }
 
   def attemptStartRest()(implicit system: ActorSystem): Unit = {
