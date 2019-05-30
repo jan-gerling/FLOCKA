@@ -5,6 +5,7 @@ import org.flocka.Services.Order.{OrderService, OrderSharding}
 import org.flocka.Services.Payment.{PaymentService, PaymentSharding}
 import org.flocka.Services.Stock.{StockService, StockSharding}
 import org.flocka.Services.User.{UserService, UserSharding}
+import org.flocka.sagas.{SagaExecutionTest, SagaSharding}
 
 /**
   * Run this object from the command line to start a service.
@@ -22,6 +23,9 @@ object ServiceBootstrap extends App {
       ServiceStart.startService(OrderSharding, OrderService)
     } else if(args(0).equalsIgnoreCase("PaymentService") || args(0).equalsIgnoreCase("p")){
       ServiceStart.startService(PaymentSharding, PaymentService)
+    } else if(args(0).equalsIgnoreCase("test") || args(0).equalsIgnoreCase("t")){
+      println("[WARN] Test is for debugging purposes only!")
+      ServiceStart.startService(SagaSharding, SagaExecutionTest)
     } else{
       println("[Error] Unknown argument: " + args(0))
       printManual()

@@ -7,14 +7,13 @@ import scala.concurrent.duration._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.sagas.SagaExecutionControllerComs._
-
+import org.flocka.sagas.SagaComs._
 import scala.concurrent.ExecutionContext
 
-object SagasExecutionControllerActor {
+object SagaStorage {
   val MAX_NUM_TRIES = 5
 
-  def props(): Props = Props(new SagasExecutionControllerActor())
+  def props(): Props = Props(new SagaStorage())
 }
 
 case class SagaExecutionControllerState(saga: Saga)  {
@@ -28,7 +27,7 @@ case class SagaExecutionControllerState(saga: Saga)  {
   }
 }
 
-class SagasExecutionControllerActor extends PersistentActor {
+class SagaStorage extends PersistentActor {
   override def persistenceId = self.path.name
 
   var state: SagaExecutionControllerState = new SagaExecutionControllerState(new Saga(-1))
@@ -50,15 +49,16 @@ class SagasExecutionControllerActor extends PersistentActor {
 
   val receiveCommand: Receive = {
     case ExecuteSaga(saga: Saga) =>
-      persist(SagaStored(saga)) { eventStore =>
+      persistAsync(SagaStored(saga)) { eventStore =>
         updateState(eventStore)
+
         val eventExecution: Event = saga.execute()
-        persist(eventExecution) { eventExecution =>
+        persistAsync(eventExecution) { eventExecution =>
           updateState(eventExecution)
           sender() ! eventExecution
-          context.parent ! Passivate(stopMessage = PoisonPill)
         }
       }
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
+    case message@ _ => throw new IllegalArgumentException(message.toString)
   }
 }

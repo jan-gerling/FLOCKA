@@ -28,6 +28,7 @@ object PersistentActorBase{
   case class InvalidPaymentException(orderId: String) extends Exception("This payment: " + orderId + " is not active.")
   case class InvalidStockException(itemId: String) extends Exception("This stock: " + itemId + " is not defined.")
   case class InvalidOrderException(orderId: String) extends Exception("This order: " + orderId + " is not defined.")
+  case class InvalidSagaException(sagaId: String) extends Exception("This saga: " + sagaId + " is not defined.")
 }
 
 /**

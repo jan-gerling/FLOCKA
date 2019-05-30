@@ -18,7 +18,6 @@ import scala.util.{Failure, Success}
   * Contains routes for the Rest User Service. Method bind is used to start the server.
   */
 object MockLoadbalancerService {
-
   val randomGenerator: scala.util.Random = scala.util.Random
   val service = "lb"
   val timeoutTime: FiniteDuration = 500 millisecond

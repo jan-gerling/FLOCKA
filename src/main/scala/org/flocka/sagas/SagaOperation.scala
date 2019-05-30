@@ -179,7 +179,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
                          (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
     return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
       case exception: TimeoutException =>
-        if(numTries >= SagasExecutionControllerActor.MAX_NUM_TRIES && !bestEffortReverse){
+        if(numTries >= SagaStorage.MAX_NUM_TRIES && !bestEffortReverse){
           resultState = ResultState.TIMEOUT
           return Future.failed(exception)
         }else {
