@@ -49,7 +49,7 @@ object UserService extends ServiceBase with UserEventMarshaller {
     def createNewUser(): Route ={
       //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
       onComplete(commandHandler(CreateUser(regionalIdManager.generateId(UserSharding.numShards)))) {
-        case Success(value) => complete(value.asInstanceOf[ToResponseMarshallable])
+        case Success(value : UserCreated) => complete(value)
         case Failure(ex) => if(ex.toString.contains("InvalidIdException")){regionalIdManager.increaseEntropy() ;createNewUser()} else complete(s"An error occurred: ${ex.getMessage}")
       }
     }
