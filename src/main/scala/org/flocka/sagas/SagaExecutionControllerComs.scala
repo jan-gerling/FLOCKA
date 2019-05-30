@@ -9,8 +9,7 @@ object SagaExecutionControllerComs {
     override val key: Long = saga.id
   }
 
-  case class SagaCreated(saga: Saga) extends Event
-  case class SagaCompleted() extends Event
-  case class SagaAborted() extends Event
-
+  case class SagaStored(saga: Saga) extends Event
+  case class SagaCompleted(saga: Saga) extends Event
+  case class SagaFailed(saga: Saga) extends Event
 }

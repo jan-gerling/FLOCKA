@@ -40,8 +40,7 @@ object MockLoadbalancerService {
 
 
     val postPayPaymentRoute: Route = {
-      pathPrefix(service / "pay" / LongNumber / LongNumber) { (userId, orderId) ⇒
-        parameter('operationId.?) { operationId =>
+      pathPrefix(service / "pay" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
           post {
             pathEndOrSingleSlash {
               println("A")
@@ -61,27 +60,23 @@ object MockLoadbalancerService {
                 }
               }
             }
-          }
         }
       }
     }
 
     val postCancelPaymentRoute: Route = {
-      pathPrefix(service / "cancelPayment" / LongNumber / LongNumber) { (userId, orderId) ⇒
-        parameter('operationId.?) { operationId =>
+      pathPrefix(service / "cancelPayment" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
           println("B")
           post {
             pathEndOrSingleSlash {
               complete("User  " + userId + " cancels payment for " + orderId)
             }
           }
-        }
       }
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service / "subtract" / LongNumber / LongNumber) { (itemId, amount) ⇒
-        parameter('operationId.?) { operationId =>
+      pathPrefix(service / "subtract" / LongNumber / LongNumber / LongNumber.?) { (itemId, amount, operationId) ⇒
           post {
             pathEndOrSingleSlash {
               //Thread.sleep(6000)
@@ -99,21 +94,18 @@ object MockLoadbalancerService {
                   complete("Failed")
                 }
               }
-            }
           }
         }
       }
     }
 
     val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service / "add" / LongNumber / LongNumber) { (itemId, amount) ⇒
-        parameter('operationId.?) { operationId =>
+      pathPrefix(service / "add" / LongNumber / LongNumber / LongNumber.?) { (itemId, amount, operationId) ⇒
           post {
             pathEndOrSingleSlash {
               println("D")
               complete("Stock increased by " + amount)
             }
-          }
         }
       }
     }
