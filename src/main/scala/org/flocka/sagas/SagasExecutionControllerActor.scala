@@ -31,32 +31,32 @@ object SagasExecutionControllerActor {
   def props(): Props = Props(new SagasExecutionControllerActor())
 }
 
-case class SagaExecutionControllerState(saga: Saga, concurrentOperationsIndex: Int, state: SagaExecutionControllerSMState.Value, entityId: Long, requesterPath: ActorPath, currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
+case class SagaExecutionControllerState(saga: Saga, concurrentOperationsIndex: Int, state: SagaExecutionControllerSMState.Value, entityId: Long, currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
   override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = currentOperations
 
   def updated(event: Event): SagaExecutionControllerState = event match {
-    case SagaLoaded(saga: Saga, requesterPath: ActorPath, operationId) =>
+    case SagaLoaded(saga: Saga, operationId) =>
       doneOperations.push(operationId, event)
-      copy(saga, 0, SagaExecutionControllerSMState.STATE_GO, entityId, requesterPath, currentOperations)
+      copy(saga, 0, SagaExecutionControllerSMState.STATE_GO, entityId, currentOperations)
     case Executing(operationId) =>
       doneOperations.push(operationId, event)
-      copy(saga, concurrentOperationsIndex, state, entityId, requesterPath, currentOperations)
+      copy(saga, concurrentOperationsIndex, state, entityId,  currentOperations)
     case StepRollbackCompleted(step: Int) =>
-      copy(saga, step - 1, state, entityId, requesterPath, currentOperations)
+      copy(saga, step - 1, state, entityId,currentOperations)
     case StepCompleted(step: Int) =>
-      copy(saga, step + 1, state, entityId, requesterPath, currentOperations)
+      copy(saga, step + 1, state, entityId,currentOperations)
     case SagaCompleted() =>
-      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC, entityId, requesterPath, currentOperations)
+      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC, entityId, currentOperations)
     case StepFailed() =>
-      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_ROLLBACK, entityId, requesterPath, currentOperations)
+      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_ROLLBACK, entityId, currentOperations)
     case SagaAborted() =>
-      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL, entityId, requesterPath, currentOperations)
+      copy(saga, concurrentOperationsIndex, SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL, entityId, currentOperations)
   }
 
 }
 
 class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogging {
-  override var state: PersistentActorState = SagaExecutionControllerState(Saga(), 0, SagaExecutionControllerSMState.STATE_PRE_EXEC, 0L, self.path, new PushOutHashmapQueueBuffer[Long, Event](5)) // For some reason i cant use _, if someone knows a fix, please tell
+  override var state: PersistentActorState = SagaExecutionControllerState(Saga(), 0, SagaExecutionControllerSMState.STATE_PRE_EXEC, 0L, new PushOutHashmapQueueBuffer[Long, Event](5)) // For some reason i cant use _, if someone knows a fix, please tell
   val config: Config = ConfigFactory.load("saga-execution-controller.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
   val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
@@ -66,6 +66,9 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
   val maxConnectionTimeout: Int = config.getInt("saga-execution-controller.max-connection-timeout")
   context.setReceiveTimeout(passivateTimeout)
   val system = context.system
+
+  //This needs to be global unfortunately. Persisted state is always behind on current events
+  var sm_state: SagaExecutionControllerSMState.Value = SagaExecutionControllerSMState.STATE_PRE_EXEC
 
 
   def updateState(event: MessageTypes.Event): Unit =
@@ -81,23 +84,11 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
 
   def getSagaExecutionControllerState(): SagaExecutionControllerState = {
     state match {
-      case state@SagaExecutionControllerState(_, _, _, _, _, _) => return state
+      case state@SagaExecutionControllerState(_, _, _, _, _) => return state
       case _ => throw new Exception("Invalid SagaExecutionController state type for SagaExecutionControllerActor: " + persistenceId + ".A state ActorState.SagaExecutionControllerState type was expected, but " + state.toString + " was found.")
     }
   }
 
-  def buildResponseEvent(request: MessageTypes.Request, requesterPath: ActorPath): Event = {
-    if (validateState(request) == false) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidSagaException(request.entityId.toString))
-    }
-    request match {
-      case LoadSaga(entityId: Long, saga: Saga, operationId: Long) =>
-        return SagaLoaded(saga, requesterPath, operationId)
-      case Execute(entityId: Long, operationId: Long) =>
-        return Executing(operationId)
-      case _ => throw new IllegalArgumentException(request.toString)
-    }
-  }
 
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
@@ -109,7 +100,21 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
 
   // I override this just so it compiles (since i need to override buildResponseEvent, but I also need to give it the ActorPath)
   override def buildResponseEvent(request: MessageTypes.Request): Event = {
-    throw new UnsupportedOperationException("buildResponseEvent(Request) of SagaExecutionController shouldnt have been called.")
+    if (validateState(request) == false) {
+      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidSagaException(request.entityId.toString))
+    }
+    request match {
+      case LoadSaga(entityId: Long, saga: Saga, operationId: Long) =>
+        return SagaLoaded(saga, operationId)
+      case Execute(entityId: Long, operationId: Long) =>
+        if(sm_state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC)
+          return SagaCompleted()
+        else {
+          return SagaAborted()
+
+        }
+      case _ => throw new IllegalArgumentException(request.toString)
+    }
   }
 
   override protected def respond(request: MessageTypes.Request): Unit = {
@@ -118,11 +123,12 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     } else {
       request match {
         case command: MessageTypes.Command =>
-          sendPersistentResponse(buildResponseEvent(command, sender().path))
           command match {
             case Execute(_, _) =>
               execute()
+              sendPersistentResponse(buildResponseEvent(command))
             case _ =>
+              sendPersistentResponse(buildResponseEvent(command))
           }
         case query: MessageTypes.Query => sendResponse(buildResponseEvent(query))
       }
@@ -181,9 +187,9 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
 
   def execute(): Unit = {
     var currIndex = getSagaExecutionControllerState().concurrentOperationsIndex
-    var state = getSagaExecutionControllerState().state
+    sm_state = getSagaExecutionControllerState().state
 
-    if (state == SagaExecutionControllerSMState.STATE_PRE_EXEC || state == SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL || state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC) {
+    if (sm_state == SagaExecutionControllerSMState.STATE_PRE_EXEC || sm_state == SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL || sm_state == SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC) {
       return
     }
 
@@ -195,7 +201,7 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
     while (!finished) {
       opsAtIndex = getSagaExecutionControllerState().saga.dagOfOps.get(currIndex)
 
-      if (state == SagaExecutionControllerSMState.STATE_GO) {
+      if (sm_state == SagaExecutionControllerSMState.STATE_GO) {
         for (op <- opsAtIndex.asScala) {
           if (op.state == OperationState.UNPERFORMED)
             doForwardOperation(op, currIndex, forwardId, 0)
@@ -212,10 +218,10 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
             finished = true
         } else { //If any of them are FAILURE
           persistForSelf(StepFailed())
-          state = SagaExecutionControllerSMState.STATE_ROLLBACK
+          sm_state = SagaExecutionControllerSMState.STATE_ROLLBACK
         }
 
-      } else if (state == SagaExecutionControllerSMState.STATE_ROLLBACK) {
+      } else if (sm_state == SagaExecutionControllerSMState.STATE_ROLLBACK) {
         for (op <- opsAtIndex.asScala) {
           if (op.state == OperationState.SUCCESS_NO_ROLLBACK) {
             doBackwardOperation(op, currIndex, backwardId, 0)
@@ -241,11 +247,11 @@ class SagasExecutionControllerActor() extends PersistentActorBase with ActorLogg
       }
     }
 
-    if (state == SagaExecutionControllerSMState.STATE_GO) {
-      context.actorSelection(getSagaExecutionControllerState().requesterPath) ! SagaCompleted()
+    if (sm_state == SagaExecutionControllerSMState.STATE_GO) {
+      sm_state = SagaExecutionControllerSMState.STATE_POST_EXEC_SUCC
       persistForSelf(SagaCompleted())
     } else {
-      context.actorSelection(getSagaExecutionControllerState().requesterPath) ! SagaAborted()
+      sm_state = SagaExecutionControllerSMState.STATE_POST_EXEC_FAIL
       persistForSelf(SagaAborted())
     }
   }

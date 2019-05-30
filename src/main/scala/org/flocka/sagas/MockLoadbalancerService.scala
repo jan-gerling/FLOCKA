@@ -44,7 +44,6 @@ object MockLoadbalancerService {
         parameter('operationId.?) { operationId =>
           post {
             pathEndOrSingleSlash {
-              Thread.sleep(1500)
 
               println("A")
               if (happy) {

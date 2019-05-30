@@ -18,7 +18,7 @@ object SagaExecutionControllerComs {
   }
 
 
-  case class SagaLoaded(saga: Saga, requesterPath: ActorPath, operation: Long) extends Event
+  case class SagaLoaded(saga: Saga, operation: Long) extends Event
 
   case class Executing(operation: Long) extends Event
 

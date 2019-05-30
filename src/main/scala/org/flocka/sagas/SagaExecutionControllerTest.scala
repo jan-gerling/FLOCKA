@@ -1,17 +1,20 @@
 package org.flocka.sagas
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.{ActorIdentity, ActorPath, ActorSystem, Identify, Props}
-import akka.cluster.sharding.{ClusterSharding}
+import akka.cluster.sharding.ClusterSharding
 import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStore}
 import akka.util.Timeout
-import com.typesafe.config.{ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import akka.pattern.ask
-import org.flocka.ServiceBasics.{IdGenerator}
-import org.flocka.Services.User.{MockLoadbalancerService}
+import org.flocka.ServiceBasics.IdGenerator
+import org.flocka.Services.User.MockLoadbalancerService
 import org.flocka.sagas.SagaExecutionControllerComs.{Execute, LoadSaga}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.Success
 
 
 object SagaExecutionControllerTest extends App {
@@ -90,7 +93,7 @@ object SagaExecutionControllerTest extends App {
         testSaga.addSequentialOperation(so4)
         testSaga.addConcurrentOperation(so5)
 
-        val timeoutTime: FiniteDuration = 500 millisecond
+        val timeoutTime: FiniteDuration = 50000 millisecond
         implicit val timeout: Timeout = Timeout(timeoutTime)
         implicit val executor: ExecutionContext = system.dispatcher
 
@@ -98,7 +101,13 @@ object SagaExecutionControllerTest extends App {
         val idGenerator: IdGenerator = new IdGenerator()
         val id: Long = idGenerator.generateId(100)
         secShard ! LoadSaga(id, testSaga, 5)
-        secShard ! Execute(id, 5)
+        val t0: Long = System.nanoTime()
+        val futureSaga = secShard ? Execute(id, 6)
+        futureSaga.onComplete{
+          case Success(value) =>
+            val elapsedTime: Double = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0)
+            println(value + " took: " + elapsedTime + " " + TimeUnit.MICROSECONDS.toString)
+        }
 
       }
     }
