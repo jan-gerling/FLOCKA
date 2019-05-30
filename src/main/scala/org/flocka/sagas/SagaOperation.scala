@@ -3,11 +3,13 @@ package org.flocka.sagas
 import java.net.URI
 import java.util.UUID.randomUUID
 import java.util.concurrent.TimeoutException
+
 import scala.concurrent.duration._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
 import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
+
 import scala.concurrent.{ExecutionContext, Future}
 
 object SagaOperationState extends Enumeration {
@@ -15,7 +17,14 @@ object SagaOperationState extends Enumeration {
 }
 
 //ToDo make this an actor
-case class SagaOperation(pathForward: URI, pathInvert: URI, forwardSuccessfulCondition: HttpResponse => Boolean){
+/**
+  *
+  * @param pathForward
+  * @param pathInvert
+  * @param forwardSuccessfulCondition
+  * @param bestEffortInverse if inverse operation fails still report a success
+  */
+case class SagaOperation(pathForward: URI, pathInvert: URI, forwardSuccessfulCondition: HttpResponse => Boolean, bestEffortInverse: Boolean = true){
   lazy val forwardId: Long = randomUUID().toString.hashCode.toLong
   lazy val backwardId: Long = randomUUID().toString.hashCode.toLong
 
@@ -44,7 +53,7 @@ case class SagaOperation(pathForward: URI, pathInvert: URI, forwardSuccessfulCon
 
     val responseFuture: Future[HttpResponse] = sendRequest(finalUri, connectionPoolSettings)
     return responseFuture.map(
-      conditions(_) match {
+      conditions(_) || (resultState == SagaOperationState.TIMEOUT && bestEffortInverse) match {
         case true   =>
           if(resultState != SagaOperationState.PENDING)
             resultState = SagaOperationState.SUCCESS
@@ -65,10 +74,10 @@ case class SagaOperation(pathForward: URI, pathInvert: URI, forwardSuccessfulCon
                          (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
     return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
       case exception: TimeoutException =>
-        if(numTries >= SagasExecutionControllerActor.MAX_NUM_TRIES){
+        if(numTries >= SagasExecutionControllerActor.MAX_NUM_TRIES && !bestEffortInverse){
           resultState = SagaOperationState.TIMEOUT
           return Future.failed(exception)
-        } else {
+        }else {
           return sendRequest(path, connectionPoolSettings, numTries + 1)
         }
     }

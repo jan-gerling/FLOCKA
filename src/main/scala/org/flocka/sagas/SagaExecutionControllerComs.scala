@@ -10,9 +10,6 @@ object SagaExecutionControllerComs {
   }
 
   case class SagaCreated(saga: Saga) extends Event
-  case class StepCompleted(newStep: Int) extends Event
-  case class StepRollbackCompleted(step: Int) extends Event
-  case class StepFailed(step: Int) extends Event
   case class SagaCompleted() extends Event
   case class SagaAborted() extends Event
 

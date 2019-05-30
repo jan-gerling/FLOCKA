@@ -56,13 +56,13 @@ class Saga(sagaId: Long) {
 
       //success
       if(stepSuccess && currentState == SagaState.PENDING){
-        persistForSelf(StepCompleted(currentIndex + 1), controller)
+        currentIndex += 1
       } else if(stepSuccess && currentState == SagaState.ROLLBACK){
-        persistForSelf(StepRollbackCompleted(currentIndex - 1), controller)
+        currentIndex -= 1
       }
       //failure
       else if (!stepSuccess && currentState == SagaState.PENDING){
-        persistForSelf(StepFailed(currentIndex), controller)
+        currentState = SagaState.ROLLBACK
       } else if (!stepSuccess && currentState == SagaState.ROLLBACK){
         throw new Exception("Could not revert done operation.")
       } else {
@@ -107,10 +107,5 @@ class Saga(sagaId: Long) {
     }
     while (pendingOperations.size > 0){Thread.sleep(25)}
     return !failed
-  }
-
-  //ToDo: remove this function
-  private def persistForSelf(event: Event, controller: ActorRef): Unit ={
-    controller ! event
   }
 }

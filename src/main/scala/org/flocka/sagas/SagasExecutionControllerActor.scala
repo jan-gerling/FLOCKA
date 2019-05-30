@@ -24,16 +24,6 @@ case class SagaExecutionControllerState(saga: Saga) extends PersistentActorState
     case SagaCreated(saga: Saga) =>
       saga.currentState = SagaState.PENDING
       copy(saga)
-    case StepRollbackCompleted(step: Int) =>
-      saga.currentIndex = step
-      copy(saga)
-    case StepFailed(step: Int) =>
-      saga.currentIndex = step
-      saga.currentState = SagaState.ROLLBACK
-      copy(saga)
-    case StepCompleted(step: Int) =>
-      saga.currentIndex = step
-      copy(saga)
     case SagaCompleted() =>
       saga.currentState = SagaState.SUCCESS
       copy(saga)
