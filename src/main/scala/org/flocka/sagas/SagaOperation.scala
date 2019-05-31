@@ -27,8 +27,8 @@ object OperationState extends Enumeration {
   * @param bestEffortReverse if reverse operation fails still report a success, otherwise escalate an exception
   */
 case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: String => Boolean, bestEffortReverse: Boolean = true){
-  lazy val forwardId: Long = randomUUID().toString.hashCode.toLong
-  lazy val reverseId: Long = randomUUID().toString.hashCode.toLong
+  lazy val forwardId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
+  lazy val reverseId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
 
   /**
     * Result state of this Saga Operation, e.g. SUCCESS
