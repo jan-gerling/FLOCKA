@@ -28,8 +28,8 @@ class Saga(sagaId: Long) {
   var dagOfOps: scala.collection.mutable.ArrayBuffer[scala.collection.mutable.ArrayBuffer[SagaOperation]] =  scala.collection.mutable.ArrayBuffer(new scala.collection.mutable.ArrayBuffer())
   var currentState = SagaState.IDLE
 
-  var maxIndex: Int = dagOfOps.size - 1
-  var currentIndex: Int = maxIndex
+  var maxIndex: Int = dagOfOps.size -1
+  var currentIndex: Int = 0
 
   def addConcurrentOperation(operation: SagaOperation): Unit = {
     dagOfOps.last += operation
@@ -38,13 +38,15 @@ class Saga(sagaId: Long) {
   def addSequentialOperation(operation: SagaOperation): Unit = {
     val newOperations: scala.collection.mutable.ArrayBuffer[SagaOperation] = scala.collection.mutable.ArrayBuffer(operation)
     dagOfOps += newOperations
+    maxIndex = dagOfOps.size - 1
+
   }
 
   /**
     * @return Is this Saga already finished - either Successful or Aborted?
     */
   def isFinished: Boolean = {
-    return ( currentState == SagaState.SUCCESS && currentIndex < 0) || (currentState == SagaState.FAILURE && currentIndex == maxIndex + 1)
+    return ( currentState == SagaState.SUCCESS && currentIndex == maxIndex + 1) || (currentState == SagaState.FAILURE && currentIndex < 0)
   }
 
   /**
@@ -52,7 +54,7 @@ class Saga(sagaId: Long) {
     * @return Is the Saga execution done and state can be changed?
     */
   private def completedExecution: Boolean = {
-    return (currentState == SagaState.PENDING && currentIndex < 0) || ( currentState == SagaState.ROLLBACK && currentIndex == maxIndex + 1)
+    return (currentState == SagaState.PENDING &&  currentIndex == maxIndex + 1) || ( currentState == SagaState.ROLLBACK && currentIndex < 0)
   }
 
   /**
@@ -77,9 +79,9 @@ class Saga(sagaId: Long) {
 
       //success
       if(stepSuccess && currentState == SagaState.PENDING){
-        currentIndex -= 1
-      } else if(stepSuccess && currentState == SagaState.ROLLBACK){
         currentIndex += 1
+      } else if(stepSuccess && currentState == SagaState.ROLLBACK){
+        currentIndex -= 1
       }
       //failure
       else if (!stepSuccess && currentState == SagaState.PENDING){
@@ -103,7 +105,6 @@ class Saga(sagaId: Long) {
   private def executeStep()(implicit executor: ExecutionContext, system: ActorSystem): Boolean ={
     var pendingOperations: ListBuffer[SagaOperation] = ListBuffer[SagaOperation]()
     var failed = false
-
     for (currentOperation: SagaOperation <- currentOperations){
         if (currentOperation.isExecutable && currentState == SagaState.PENDING) {
           pendingOperations += currentOperation

@@ -23,10 +23,11 @@ object OperationState extends Enumeration {
   * @param pathForward fully qualified URI to a service, must be extendable with an operation id
   * @param pathRevert fully qualified URI to a service reverting the forward path changes, must be extendable with an operation id
   * @param forwardCondition defines expectations for the response of the forward path operation
-  * @param revertCondition defines expectations for the response of the revert path operation
   * @param bestEffortReverse if reverse operation fails still report a success, otherwise escalate an exception
+  * @param baseTimeout default amount of time to wait for the operation -- having this configurable per operation is a good idea
+  * @param timeoutScaling amount of extra time to wait every retry
   */
-case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: String => Boolean, bestEffortReverse: Boolean = true){
+case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: String => Boolean, bestEffortReverse: Boolean = true, baseTimeout: Int = 1, timeoutScaling : Int = 1){
   lazy val forwardId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
   lazy val reverseId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
 
@@ -100,11 +101,8 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     executionState = OperationState.PENDING
     val finalUri: String = buildPath(operationId, path)
 
-    //ToDo: fix time out lookup and calculation
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(5 seconds)
-    val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
 
-    val responseFuture: Future[HttpResponse] = sendRequest(finalUri, connectionPoolSettings)
+    val responseFuture: Future[HttpResponse] = sendRequest(finalUri)
     responseFuture.map( response ⇒
       if(forward)
         forwardOperationDone(conditions(response.toString))
@@ -175,15 +173,19 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     return path.toString + "/" + operationId.toString
   }
 
-  private def sendRequest(path: String, connectionPoolSettings: ConnectionPoolSettings, numTries: Int = 0)
+  private def sendRequest(path: String, numTries: Int = 0)
                          (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
+
+    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(baseTimeout + timeoutScaling * numTries seconds)
+    val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
+
     return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
       case exception: TimeoutException =>
         if(numTries >= SagaStorage.MAX_NUM_TRIES && !bestEffortReverse){
           resultState = ResultState.TIMEOUT
           return Future.failed(exception)
         }else {
-          return sendRequest(path, connectionPoolSettings, numTries + 1)
+          return sendRequest(path, numTries + 1)
         }
     }
   }

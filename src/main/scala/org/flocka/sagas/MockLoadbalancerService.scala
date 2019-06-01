@@ -25,7 +25,7 @@ object MockLoadbalancerService {
   var paymentsDone = 0
   var decreaseStocksDone = 0
 
-  val happy = false
+  val happy = true
 
   /**
     * Starts the server
@@ -43,6 +43,9 @@ object MockLoadbalancerService {
           post {
             pathEndOrSingleSlash {
               println("A")
+              if (paymentsDone % 2 != 0) {
+                Thread.sleep(500)
+              }
 
               if (happy) {
                 complete("User  " + userId + " pays for " + orderId)
@@ -80,6 +83,10 @@ object MockLoadbalancerService {
             pathEndOrSingleSlash {
               //Thread.sleep(6000)
               println("C")
+              if (decreaseStocksDone % 2 != 0) {
+                Thread.sleep(500)
+              }
+
               if (happy) {
                 complete("Stock decreased by " + amount)
               }else {

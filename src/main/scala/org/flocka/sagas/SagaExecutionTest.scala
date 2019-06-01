@@ -25,7 +25,7 @@ import scala.util.{Failure, Success}
 object SagaExecutionTest extends ServiceBase {
   override val configName: String = "saga-execution-controller.conf"
   val service = "orders"
-  val timeoutTime: FiniteDuration = 500 millisecond
+  val timeoutTime: FiniteDuration = 20000 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def logImportant(toLog: String) = println("==========================\n" + toLog + "\n=============================")
