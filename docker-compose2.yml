@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  user-service:
+    network_mode: host
+    image: service-runner
+    command: u -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@${SEED0_IP}:2551 -Dakka.cluster.seed-nodes.1=akka.tcp://flocka-user@${SEED1_IP}:2551 -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2551
+
+  stock-service:
+    network_mode: host
+    image: service-runner
+    command: s -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@${SEED0_IP}:2561 -Dakka.cluster.seed-nodes.1=akka.tcp://flocka-user@${SEED1_IP}:2561 -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2561
+
+  order-service:
+    network_mode: host
+    image: service-runner
+    command: o -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@${SEED0_IP}:2571 -Dakka.cluster.seed-nodes.1=akka.tcp://flocka-user@${SEED1_IP}:2571 -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2571
+
+  payment-service:
+    network_mode: host
+    image: service-runner
+    command: p -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@${SEED0_IP}:2581 -Dakka.cluster.seed-nodes.1=akka.tcp://flocka-user@${SEED1_IP}:2581 -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2581
+

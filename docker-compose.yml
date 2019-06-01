@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  user-service1:
+    network_mode: host
+    image: service-runner
+    command: u -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@localhost:2551 -Dakka.cluster.seed-nodes.1=akka.tcp://flocka-user@localhost:2552 -Dakka.remote.netty.tcp.hostname=localhost -Dakka.remote.netty.tcp.port=2551 -Dservice.exposed-port=8080
+  user-service2:
+    network_mode: host
+    image: service-runner
+    command: u -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@localhost:2551 -Dakka.cluster.seed-nodes.1=akka.tcp://flocka-user@localhost:2552 -Dakka.remote.netty.tcp.hostname=localhost -Dakka.remote.netty.tcp.port=2552 -Dservice.exposed-port=8081
