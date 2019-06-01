@@ -27,7 +27,10 @@ abstract case class ShardingBase(name: String, configPath: String) {
     case _ => throw new IllegalArgumentException()
   }
 
-  final val shardName: String = name
+  /**
+    * Alter with care if necessary!
+    */
+  def shardName: String = name
   final val configName: String = configPath
   final val config: Config = ConfigFactory.load(configName)
 
@@ -37,7 +40,7 @@ abstract case class ShardingBase(name: String, configPath: String) {
   var seedPorts: Array[String]
   var publicSeedPort: String
 
-  final val numShards: Int = config.getInt("sharding.numshards")
-  final val clusterName: String = config.getString("clustering.cluster.name")
-  final val hostName: String = config.getString("akka.remote.netty.tcp.hostname")
+  def numShards: Int = config.getInt("sharding.numshards")
+  def clusterName: String = config.getString("clustering.cluster.name")
+  def hostName: String = config.getString("akka.remote.netty.tcp.hostname")
 }
