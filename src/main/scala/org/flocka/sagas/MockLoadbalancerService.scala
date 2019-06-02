@@ -18,7 +18,6 @@ import scala.util.{Failure, Success}
   * Contains routes for the Rest User Service. Method bind is used to start the server.
   */
 object MockLoadbalancerService {
-
   val randomGenerator: scala.util.Random = scala.util.Random
   val service = "lb"
   val timeoutTime: FiniteDuration = 500 millisecond
@@ -26,7 +25,7 @@ object MockLoadbalancerService {
   var paymentsDone = 0
   var decreaseStocksDone = 0
 
-  val happy = false
+  val happy = true
 
   /**
     * Starts the server
@@ -41,57 +40,66 @@ object MockLoadbalancerService {
 
     val postPayPaymentRoute: Route = {
       pathPrefix(service / "pay" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
-        post {
-          pathEndOrSingleSlash {
-            println("A")
-            if (happy) {
-              complete("User  " + userId + " pays for " + orderId)
-            }
-            else {
-              if (paymentsDone % 3 != 2) {
-                paymentsDone += 1
+          post {
+            pathEndOrSingleSlash {
+              println("A")
+              if (paymentsDone % 2 != 0) {
+                Thread.sleep(500)
+              }
 
+              if (happy) {
                 complete("User  " + userId + " pays for " + orderId)
-              } else {
-                paymentsDone += 1
+              }
+              else {
+                if (paymentsDone % 3 != 2) {
+                  paymentsDone += 1
 
-                complete("Failed")
+                  complete("User  " + userId + " pays for " + orderId)
+                }else {
+                  paymentsDone += 1
+
+                  complete("Failed")
+                }
               }
             }
-          }
         }
       }
     }
 
     val postCancelPaymentRoute: Route = {
       pathPrefix(service / "cancelPayment" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
-        println("B")
-        post {
-          pathEndOrSingleSlash {
-            complete("User  " + userId + " cancels payment for " + orderId)
+          println("B")
+          post {
+            pathEndOrSingleSlash {
+              complete("User  " + userId + " cancels payment for " + orderId)
+            }
           }
-        }
       }
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
       pathPrefix(service / "subtract" / LongNumber / LongNumber / LongNumber.?) { (itemId, amount, operationId) ⇒
-        post {
-          pathEndOrSingleSlash {
-            println("C")
-            if (happy) {
-              complete("Stock decreased by " + amount)
-            } else {
-              if (decreaseStocksDone % 3 != 2) {
-                decreaseStocksDone += 1
-
-                complete("Stock decreased by " + amount)
-              } else {
-                decreaseStocksDone += 1
-
-                complete("Failed")
+          post {
+            pathEndOrSingleSlash {
+              //Thread.sleep(6000)
+              println("C")
+              if (decreaseStocksDone % 2 != 0) {
+                Thread.sleep(500)
               }
-            }
+
+              if (happy) {
+                complete("Stock decreased by " + amount)
+              }else {
+                if(decreaseStocksDone % 3 != 2) {
+                  decreaseStocksDone += 1
+
+                  complete("Stock decreased by " + amount)
+                }else{
+                  decreaseStocksDone += 1
+
+                  complete("Failed")
+                }
+              }
           }
         }
       }
@@ -99,11 +107,11 @@ object MockLoadbalancerService {
 
     val postIncreaseItemAvailabilityRoute: Route = {
       pathPrefix(service / "add" / LongNumber / LongNumber / LongNumber.?) { (itemId, amount, operationId) ⇒
-        post {
-          pathEndOrSingleSlash {
-            println("D")
-            complete("Stock increased by " + amount)
-          }
+          post {
+            pathEndOrSingleSlash {
+              println("D")
+              complete("Stock increased by " + amount)
+            }
         }
       }
     }
