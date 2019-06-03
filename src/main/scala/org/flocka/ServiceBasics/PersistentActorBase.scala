@@ -100,7 +100,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     */
   private def getDoneEvent(request: MessageTypes.Request): Option[Event] = {
     request match {
-      case command: MessageTypes.Command => state.doneOperations.getOption(command.operationId)
+      case command: MessageTypes.Command => if(command.operationId >= 0) state.doneOperations.getOption(command.operationId) else None
       case _ => None
     }
   }

@@ -41,7 +41,7 @@ object PaymentService extends ServiceBase {
     }
 
     val postPayPaymentRoute: Route = {
-      pathPrefix(service /  "pay" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
+      pathPrefix(service /  "pay" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { (userId, orderId, operationId) ⇒
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(PayPayment(userId, orderId, operationId.getOrElse{-1L}))) {
@@ -53,7 +53,7 @@ object PaymentService extends ServiceBase {
     }
 
     val postCancelPaymentRoute: Route = {
-      pathPrefix(service /  "cancelPayment" / LongNumber / LongNumber / LongNumber.?) { (userId, orderId, operationId) ⇒
+      pathPrefix(service /  "cancelPayment" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { (userId, orderId, operationId) ⇒
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(CancelPayment(userId, orderId, operationId.getOrElse{-1L}))) {

@@ -70,7 +70,7 @@ object StockService extends ServiceBase {
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "subtract" / LongNumber / LongNumber / LongNumber.?) { ( itemId, amount, operationId) ⇒
+      pathPrefix(service /  "subtract" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { ( itemId, amount, operationId) ⇒
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(DecreaseAvailability(itemId, amount, operationId.getOrElse {-1L}))) {
@@ -83,7 +83,7 @@ object StockService extends ServiceBase {
     }
 
     val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "add" / LongNumber / LongNumber / LongNumber.?) { ( itemId, amount, operationId) ⇒
+      pathPrefix(service /  "add" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { ( itemId, amount, operationId) ⇒
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(IncreaseAvailability(itemId, amount, operationId.getOrElse{-1L}))) {
