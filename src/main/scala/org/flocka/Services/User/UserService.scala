@@ -124,7 +124,7 @@ object UserService extends ServiceBase{
       }
     }
 
-    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute
+    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute ~
       postSubtractCreditRoute ~ postAddCreditRoute
 
     implicit val materializer = ActorMaterializer()
