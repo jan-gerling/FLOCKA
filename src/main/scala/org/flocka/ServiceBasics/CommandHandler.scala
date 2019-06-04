@@ -14,20 +14,15 @@ trait CommandHandler {
   Handles the given command for an actor by sending it with the ask pattern to the target actor.
   @param command command for an data base objects value
   @param targetActor the target actor for the given command
-  @param timeoutTime timeout time for this command
-  @param currentExecutor current execution context of the actor
   @param pipeToActor if the current actor is not supposed to retrieve the result, pipe it to this actor
   @param postConditions if wanted apply conditions for the results of the given command
   @return is supposed to be future of type UserCommunication.Event.
     */
     def commandHandler(command: MessageTypes.Command,
                        targetActor: Option[ActorRef],
-                       timeoutTime: FiniteDuration,
-                       currentExecutor: ExecutionContext,
                        pipeToActor: Option[ActorRef] = None,
-                       postConditions: Any => Boolean = _ => true) : Future[Any] = {
-      implicit val timeout = Timeout(timeoutTime)
-      implicit val executor: ExecutionContext = currentExecutor
+                       postConditions: Any => Boolean = _ => true)
+                      (implicit timeout: Timeout, executor: ExecutionContext): Future[Any] = {
       targetActor match {
       case Some(actorRef: ActorRef) =>
         val actorFuture = actorRef ? command

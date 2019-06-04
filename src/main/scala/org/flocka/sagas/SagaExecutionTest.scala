@@ -30,8 +30,7 @@ object SagaExecutionTest extends ServiceBase {
 
   def logImportant(toLog: String) = println("==========================\n" + toLog + "\n=============================")
 
-  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
-    implicit val executionContext: ExecutionContext = executor
+  def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     attemptStartRest()
 
     val idGenerator: IdGenerator = new IdGenerator()
@@ -42,7 +41,7 @@ object SagaExecutionTest extends ServiceBase {
       Giving id -1 is no id, only for creating new objects
       */
     def commandHandler(command: MessageTypes.Command): Future[Any] = {
-      super.commandHandler(command, Option(shardRegion), timeoutTime, executor)
+      super.commandHandler(command, Option(shardRegion))
     }
 
     def createOrderSaga(): Saga ={
