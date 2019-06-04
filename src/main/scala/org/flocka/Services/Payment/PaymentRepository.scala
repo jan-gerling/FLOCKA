@@ -36,17 +36,11 @@ case class PaymentState(userId: Long,
 
   def updated(event: MessageTypes.Event): PaymentState = event match {
 
-    case PaymentPayed(userId, orderId, true, _) =>
-      copy(userId = userId, orderId = orderId, status = true)
+    case PaymentPayed(userId, orderId, status, _) =>
+      copy(userId = userId, orderId = orderId, status = status)
 
-    case PaymentPayed(userId, orderId, false, _) =>
-      copy(userId = userId, orderId = orderId, status = false)
-
-    case PaymentCanceled(userId, orderId, true, _) =>
-      copy(userId = userId, orderId = orderId, status = true)
-
-    case PaymentCanceled(userId, orderId, false, _) =>
-      copy(userId = userId, orderId = orderId, status = false)
+    case PaymentCanceled(userId, orderId, status, _) =>
+      copy(userId = userId, orderId = orderId, status = status)
 
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
   }
@@ -80,7 +74,8 @@ class PaymentRepository extends PersistentActorBase {
   implicit val system: ActorSystem = context.system
   implicit val executor: ExecutionContext = system.dispatcher
 
-  val MAX_NUM_TRIES = 5
+  val MAX_NUM_TRIES = 3
+  val TIMOUT_TIME = 500 millisecond
 
   val config: Config = ConfigFactory.load("payment-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
@@ -117,28 +112,28 @@ class PaymentRepository extends PersistentActorBase {
         val futureOrder: Future[HttpResponse] = sendRequest(orderUri)
 
         Await.result(futureOrder.map { response =>
-          val amount = getOrderAmount(response.toString())
+          val amount = getTotalOrderCost(response.toString())
           val decreaseCreditUri = loadBalancerURI + "/users/credit/subtract/" + userId + "/" + amount
           val futureCredit: Future[HttpResponse] = sendRequest(decreaseCreditUri)
           Await.result[Event](futureCredit.map { response =>
             val success: Boolean = response.toString.contains("CreditSubtracted") && response.toString.contains("true")
             PaymentPayed(userId, orderId, success, operationId)
-          }, 500 millisecond)
-        }, 500 millisecond)
+          }, TIMOUT_TIME)
+        }, TIMOUT_TIME)
 
       case CancelPayment(userId, orderId, operationId) =>
         val orderUri = loadBalancerURI + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(orderUri)
 
         Await.result(futureOrder.map { response =>
-          val amount = getOrderAmount(response.toString())
+          val amount = getTotalOrderCost(response.toString())
           val decreaseCreditUri = loadBalancerURI + "/users/credit/add/" + userId + "/" + amount
           val futureCredit: Future[HttpResponse] = sendRequest(decreaseCreditUri)
           Await.result[Event](futureCredit.map { response =>
             val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
             PaymentCanceled(userId, orderId, success, operationId)
-          }, 500 millisecond)
-        }, 500 millisecond)
+          }, TIMOUT_TIME)
+        }, TIMOUT_TIME)
 
       case GetPaymentStatus(orderId) =>
         val paymentState: PaymentState = getPaymentState(orderId).getOrElse(throw new InvalidPaymentException(orderId.toString))
@@ -166,7 +161,7 @@ class PaymentRepository extends PersistentActorBase {
   }
 
 
-  private def getOrderAmount(response: String) : Long ={
+  private def getTotalOrderCost(response: String) : Long ={
     var amount : Long = 0
     var currTuple = ""
     if (response.contains("List((")) { //has more than one item
