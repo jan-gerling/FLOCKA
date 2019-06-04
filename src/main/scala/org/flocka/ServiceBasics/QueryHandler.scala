@@ -14,7 +14,6 @@ trait QueryHandler {
   @param query query for an data base objects value
   @param targetActor the target actor for the given query
   @param pipeToActor if the current actor is not supposed to retrieve the result, pipe it to this actor
-  @param postConditions if wanted apply conditions for the results of the given query
   @return is supposed to be future of type UserCommunication.Event.
   */
   def queryHandler(query: MessageTypes.Query,
@@ -25,12 +24,6 @@ trait QueryHandler {
     targetActor match {
       case Some(actorRef: ActorRef) =>
         val actorFuture = actorRef ? query
-        //ToDo: how to handle unexpected/ unwanted results?
-        //ToDo: how to handle exceptions? aside from supervisor strategies?
-        actorFuture.filter (postConditions).recover {
-          case m: NoSuchElementException => 0
-        }
-
         pipeToActor match {
           case Some(receivingActor) => actorFuture pipeTo receivingActor
           case None => return actorFuture
