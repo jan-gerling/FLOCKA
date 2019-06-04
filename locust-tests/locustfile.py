@@ -78,7 +78,7 @@ def subtract_stock(locust_user, item_id, quantity):
     return locust_user.client.post("/stock/subtract/%s/%s" %(item_id, quantity))
 
 def create_item(locust_user):
-    response = locust_user.client.post("/stock/item/create/")
+    response = locust_user.client.post("/stock/item/create")
     if response.status_code == 200:
         return re.search('\((.+?)\)', response.text).group(1)
     else:
