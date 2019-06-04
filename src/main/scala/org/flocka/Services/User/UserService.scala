@@ -26,7 +26,7 @@ object UserService extends ServiceBase{
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
-  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
+  def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
 
     /*
@@ -34,14 +34,14 @@ object UserService extends ServiceBase{
       Giving userId -1 is no userId, only for creating new users
       */
     def commandHandler(command: MessageTypes.Command): Future[Any] = {
-      super.commandHandler(command, Option(shardRegion), timeoutTime, executor)
+      super.commandHandler(command, Option(shardRegion))
     }
 
     /*
       similar to the command handler
       */
     def queryHandler(query: MessageTypes.Query): Future[Any] = {
-      super.queryHandler(query, Option(shardRegion), timeoutTime, executor)
+      super.queryHandler(query, Option(shardRegion))
     }
 
     def createNewUser(): Route ={
@@ -124,7 +124,7 @@ object UserService extends ServiceBase{
       }
     }
 
-    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute
+    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute ~
       postSubtractCreditRoute ~ postAddCreditRoute
 
     implicit val materializer = ActorMaterializer()

@@ -26,21 +26,19 @@ object PaymentService extends ServiceBase {
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
-
-
-  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
+  def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     /*
       Handles the given command for supervisor actor by sending it with the ask pattern to the target actor.
       */
     def commandHandler(command: MessageTypes.Command): Future[Any] = {
-      super.commandHandler(command, Option(shardRegion), timeoutTime, executor)
+      super.commandHandler(command, Option(shardRegion))
     }
 
     /*
       similar to the command handler
       */
     def queryHandler(query: MessageTypes.Query): Future[Any] = {
-      super.queryHandler(query, Option(shardRegion), timeoutTime, executor)
+      super.queryHandler(query, Option(shardRegion))
     }
 
     val postPayPaymentRoute: Route = {
