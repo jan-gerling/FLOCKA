@@ -61,3 +61,28 @@ Users: 2551
 Stock: 2561
 Order: 2571
 Payment: 2581
+
+## Deployment
+
+Current deployment ideal involves a load-balancer capable of accessing the state of an AWS Autoscaling group, such that it can route to any node in said group.
+
+Each node on startup, runs docker-compose up on the final yaml file, setting up all necessary services and connecting to the seed nodes.
+
+To build our own Amazon Image, we need a base image (ubuntu or whatever), install docker and docker-compose. Run docker as a service. By running docker-compose up the image is pulled and ran automatically.
+
+### Deployment Details
+
+Dockerfile -- Copies into a java:8 base image our jar and run.sh. run.sh is the entrypoint
+
+run.sh -- Script that runs our jar, passing the first argument given to docker to our jar, and all others to java. This way we can override configuration at launch
+
+docker-compose-local.yml -- Runs each service, as well as mongo for local testing.
+
+docker-compose-deploy.yml -- Runs each service, in deployment mode.
+
+build_and_run.sh -- Will build the jar and docker image locally, running docker-compose automatically.
+### Docker credentials
+User: wdm2019akka
+PW: WakkaFlocka
+image: wdm2019akka/service-runner
+
