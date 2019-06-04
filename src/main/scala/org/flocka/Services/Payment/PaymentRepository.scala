@@ -1,9 +1,13 @@
 package org.flocka.Services.Payment
 
+import java.util.concurrent.TimeoutException
+
 import akka.actor.{Props, _}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
+import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
 import akka.persistence.SnapshotOffer
 import com.typesafe.config.{Config, ConfigFactory}
-import org.flocka.ServiceBasics
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.PersistentActorBase.InvalidPaymentException
 import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
@@ -12,6 +16,7 @@ import org.flocka.Utils.PushOutHashmapQueueBuffer
 
 import scala.collection.mutable
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 /**
   * PaymentActor props and custom exceptions for a PaymentActor.
@@ -34,7 +39,13 @@ case class PaymentState(userId: Long,
     case PaymentPayed(userId, orderId, true, _) =>
       copy(userId = userId, orderId = orderId, status = true)
 
-    case PaymentCanceled(userId, orderId, _) =>
+    case PaymentPayed(userId, orderId, false, _) =>
+      copy(userId = userId, orderId = orderId, status = false)
+
+    case PaymentCanceled(userId, orderId, true, _) =>
+      copy(userId = userId, orderId = orderId, status = true)
+
+    case PaymentCanceled(userId, orderId, false, _) =>
       copy(userId = userId, orderId = orderId, status = false)
 
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
@@ -48,7 +59,7 @@ case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState], cur
     case PaymentPayed(userId, orderId, true, operationId) =>
       doneOperations.push(operationId, event)
       copy(payments += orderId -> new PaymentState(userId, orderId, true).updated(event))
-    case PaymentCanceled(userId, orderId, operationId) =>
+    case PaymentCanceled(userId, orderId, false, operationId) =>
       doneOperations.push(operationId, event)
       copy(payments += orderId -> new PaymentState(userId, orderId, false).updated(event))
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
@@ -66,9 +77,16 @@ case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState], cur
 class PaymentRepository extends PersistentActorBase {
   override var state: PersistentActorState = new PaymentRepositoryState(mutable.Map.empty[Long, PaymentState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
+  implicit val system: ActorSystem = context.system
+  implicit val executor: ExecutionContext = system.dispatcher
+
+  val MAX_NUM_TRIES = 5
+
   val config: Config = ConfigFactory.load("payment-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
   val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
+
+  val loadBalancerURI: String = config.getString("clustering.loadbalancer.uri")
 
   // Since we have millions of users, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
@@ -94,9 +112,33 @@ class PaymentRepository extends PersistentActorBase {
 
   def buildResponseEvent(request: MessageTypes.Request): Event = {
     request match {
-      case PayPayment(userId, orderId, operationId) => return PaymentPayed(userId, orderId, true, operationId)
+      case PayPayment(userId, orderId, operationId) =>
+        val orderUri = loadBalancerURI + "/orders/find/" + orderId
+        val futureOrder: Future[HttpResponse] = sendRequest(orderUri)
 
-      case CancelPayment(userId, orderId, operationId) => return PaymentCanceled(userId, orderId, operationId)
+        Await.result(futureOrder.map { response =>
+          val amount = getOrderAmount(response.toString())
+          val decreaseCreditUri = loadBalancerURI + "/users/credit/subtract/" + userId + "/" + amount
+          val futureCredit: Future[HttpResponse] = sendRequest(decreaseCreditUri)
+          Await.result[Event](futureCredit.map { response =>
+            val success: Boolean = response.toString.contains("CreditSubtracted") && response.toString.contains("true")
+            PaymentPayed(userId, orderId, success, operationId)
+          }, 500 millisecond)
+        }, 500 millisecond)
+
+      case CancelPayment(userId, orderId, operationId) =>
+        val orderUri = loadBalancerURI + "/orders/find/" + orderId
+        val futureOrder: Future[HttpResponse] = sendRequest(orderUri)
+
+        Await.result(futureOrder.map { response =>
+          val amount = getOrderAmount(response.toString())
+          val decreaseCreditUri = loadBalancerURI + "/users/credit/add/" + userId + "/" + amount
+          val futureCredit: Future[HttpResponse] = sendRequest(decreaseCreditUri)
+          Await.result[Event](futureCredit.map { response =>
+            val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
+            PaymentCanceled(userId, orderId, success, operationId)
+          }, 500 millisecond)
+        }, 500 millisecond)
 
       case GetPaymentStatus(orderId) =>
         val paymentState: PaymentState = getPaymentState(orderId).getOrElse(throw new InvalidPaymentException(orderId.toString))
@@ -120,6 +162,38 @@ class PaymentRepository extends PersistentActorBase {
         if (getPaymentState(orderId).isDefined)
           return true
         else throw new InvalidPaymentException("Payment with " + orderId.toString + "does not exist.")
+    }
+  }
+
+
+  private def getOrderAmount(response: String) : Long ={
+    var amount : Long = 0
+    var currTuple = ""
+    if (response.contains("List((")) { //has more than one item
+      val listOfTuples = response.split("List(")(1).split(",")
+      for (tuple <- listOfTuples) {
+        currTuple = tuple replaceAll ("(","")
+        currTuple = tuple replaceAll (")","")
+        amount += currTuple.split(",")(1).toLong
+      }
+    }
+    return amount
+  }
+
+  private def sendRequest(path: String, numTries: Int = 0)
+                         (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
+
+
+    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(numTries seconds)
+    val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
+
+    return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
+      case exception: TimeoutException =>
+        if(numTries >= MAX_NUM_TRIES){
+          return Future.failed(exception)
+        }else {
+          return sendRequest(path, numTries + 1)
+        }
     }
   }
 }

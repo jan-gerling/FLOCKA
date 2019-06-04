@@ -3,11 +3,12 @@ package org.flocka.Services.Payment
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import org.flocka.ServiceBasics.{ MessageTypes, ServiceBase}
+import org.flocka.ServiceBasics.{MessageTypes, ServiceBase}
 import org.flocka.Services.Payment.PaymentServiceComs._
 
 import scala.concurrent.duration._
@@ -24,6 +25,8 @@ object PaymentService extends ServiceBase {
   val service = "payment"
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
+
+
 
   def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding] = {
     /*
@@ -45,7 +48,8 @@ object PaymentService extends ServiceBase {
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(PayPayment(userId, orderId, operationId.getOrElse{-1L}))) {
-              throw new UnsupportedOperationException("The service checkout is not yet supported by " + getClass)
+              case Success(value) => complete(value.toString)
+              case Failure(ex)    => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
