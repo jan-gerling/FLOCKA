@@ -62,10 +62,11 @@ Stock: 2561
 Order: 2571
 Payment: 2581
 
-##Stress Testing ##
+## Stress Testing ##
 * go to /locust-test
 * execute in terminal:
 ```
 locust --host=http://127.0.0.1
 ```
 You can access the interface at <http://localhost:8089/>
+More information about configuration and API at <https://docs.locust.io/en/stable/index.html>
