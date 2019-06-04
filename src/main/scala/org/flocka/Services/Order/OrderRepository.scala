@@ -31,17 +31,18 @@ object OrderRepository {
 case class OrderState(orderId: Long,
                      userId: Long,
                      paymentStatus: Boolean,
-                     items: mutable.ListBuffer[Long],
+                     items: mutable.ListBuffer[(Long, Long)],
                       active: Boolean) {
   def updated(event: MessageTypes.Event): OrderState = event match {
     case OrderCreated(orderId, userId) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = false, mutable.ListBuffer.empty[Long], active = true)
+      copy(orderId = orderId, userId = userId, paymentStatus = false, mutable.ListBuffer.empty[(Long, Long)], active = true)
     case OrderDeleted(orderId, true) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, mutable.ListBuffer.empty[Long], active = false)
-    case ItemAdded(orderId, itemId, true, operationId) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items += itemId, active = active)
+      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, mutable.ListBuffer.empty[(Long, Long)], active = false)
+    case ItemAdded(orderId, itemId, price, true, operationId) =>
+      val newItem: (Long, Long) = (itemId,price)
+      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items += newItem, active = active)
     case ItemRemoved(orderId, itemId, true, operationId) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items -= itemId, active = active)
+      copy(orderId = orderId, userId = userId, items = items.filter(element => element._1 == itemId), active = active)
     case OrderCheckedOut(orderId, true) =>
       copy(orderId = orderId, userId = userId, paymentStatus = true, items = items, active = active)
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActor.")
@@ -56,14 +57,14 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
 
   def updated(event: MessageTypes.Event): OrderRepositoryState = event match {
     case OrderCreated(orderId, userId) =>
-      copy(orders += orderId -> new OrderState(-1, -1, false, mutable.ListBuffer.empty[Long], false).updated(event))
+      copy(orders += orderId -> new OrderState(-1, -1, false, mutable.ListBuffer.empty[(Long, Long)], false).updated(event))
     case OrderDeleted(orderId, true) =>
       orders.get(orderId).get.updated(event)
       copy(orders -= orderId)
-    case ItemAdded(orderId, itemId, true, operationId) =>
+    case ItemAdded(orderId, _, _, true, operationId) =>
       doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
-    case ItemRemoved(orderId, itemId, true, operationId) =>
+    case ItemRemoved(orderId, _, true, operationId) =>
       doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
     case OrderCheckedOut(orderId, true) =>
@@ -72,7 +73,7 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
       /**
       Ignore these events, they have no state changes
        */
-    case ItemRemoved(_ ,_ , false, _) | ItemAdded(_ ,_ , false, _) | OrderCheckedOut(_ , false) => this
+    case ItemRemoved(_ ,_ , false, _) | ItemAdded(_ ,_ , _, false, _) | OrderCheckedOut(_ , false) => this
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for OrderActor.")
   }
 }
@@ -83,6 +84,8 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
   */
 class OrderRepository extends PersistentActorBase {
   override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500))
+
+  val randomGenerator: scala.util.Random  = scala.util.Random
 
   val config: Config = ConfigFactory.load("order-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
@@ -119,7 +122,7 @@ class OrderRepository extends PersistentActorBase {
       case AddItem(orderId, itemId, operationId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
-        return ItemAdded(orderId, itemId, success, operationId)
+        return ItemAdded(orderId, itemId, randomGenerator.nextInt(100).toLong, success, operationId)
 
       case RemoveItem(orderId, itemId, operationId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))

@@ -36,7 +36,7 @@ object OrderServiceComs{
     override val entityId: Long = IdResolver.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
-  final case class OrderFound(orderId: Long,userId: Long, paymentStatus: Boolean, items: List[Long]) extends MessageTypes.Event
+  final case class OrderFound(orderId: Long,userId: Long, paymentStatus: Boolean, items: List[(Long, Long)]) extends MessageTypes.Event
 
   /**
     /orders/addItem/{order_id}/{item_id}
@@ -48,7 +48,7 @@ object OrderServiceComs{
     override val key: Long = orderId
     override val operationId: Long = operation
   }
-  final case class ItemAdded(orderId: Long, itemId: Long, success: Boolean, operation: Long) extends MessageTypes.Event{
+  final case class ItemAdded(orderId: Long, itemId: Long, price: Long, success: Boolean, operation: Long) extends MessageTypes.Event{
     override val operationId: Long = operation
   }
 
