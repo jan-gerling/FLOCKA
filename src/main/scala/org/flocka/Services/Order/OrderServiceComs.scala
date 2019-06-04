@@ -1,5 +1,6 @@
 package org.flocka.Services.Order
 
+import akka.actor.ActorRef
 import org.flocka.ServiceBasics.{IdResolver, MessageTypes}
 
 /**
@@ -71,7 +72,7 @@ object OrderServiceComs{
     POST - makes the payment (via calling the payment service), subtracts the stock (via the stock service)
     return a status success or failure
   */
-  final case class CkeckoutOrder(orderId: Long) extends MessageTypes.Command{
+  final case class CheckoutOrder(orderId: Long, secShardingActor: ActorRef) extends MessageTypes.Command{
     override val entityId: Long = IdResolver.extractRepositoryId(orderId)
     override val key: Long = orderId
   }
