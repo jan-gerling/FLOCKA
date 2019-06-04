@@ -99,7 +99,7 @@ object UserService extends ServiceBase{
     }
 
     val postSubtractCreditRoute: Route = {
-      pathPrefix(service / "credit" / "subtract" / LongNumber / LongNumber / LongNumber.?) { (userId, amount, operationId) ⇒
+      pathPrefix(service / "credit" / "subtract" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { (userId, amount, operationId) ⇒
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(SubtractCredit(userId, amount, operationId.getOrElse{-1L}))) {
@@ -112,7 +112,7 @@ object UserService extends ServiceBase{
     }
 
     val postAddCreditRoute: Route = {
-      pathPrefix(service / "credit" / "add" / LongNumber / LongNumber / LongNumber.?) { (userId, amount, operationId) ⇒
+      pathPrefix(service / "credit" / "add" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { (userId, amount, operationId) ⇒
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(AddCredit(userId, amount, operationId.getOrElse{-1L}))) {
