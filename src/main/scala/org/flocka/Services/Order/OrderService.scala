@@ -94,7 +94,7 @@ object OrderService extends ServiceBase {
     }
 
     val postAddItemRoute: Route = {
-      pathPrefix(service / "item" / "add" / LongNumber / LongNumber / LongNumber.?) { (orderId, itemId, operationId) ⇒
+      pathPrefix(service / "item" / "add" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { (orderId, itemId, operationId) ⇒
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(AddItem(orderId, itemId, operationId.getOrElse{-1L}))) {
@@ -107,7 +107,7 @@ object OrderService extends ServiceBase {
     }
 
     val postRemoveItemRoute: Route = {
-      pathPrefix(service / "item" / "remove" / LongNumber / LongNumber / LongNumber.?) { (orderId, itemId, operationId) ⇒
+      pathPrefix(service / "item" / "remove" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { (orderId, itemId, operationId) ⇒
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(RemoveItem(orderId, itemId, operationId.getOrElse{-1L}))) {

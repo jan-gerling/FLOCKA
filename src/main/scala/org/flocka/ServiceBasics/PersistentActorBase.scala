@@ -1,11 +1,13 @@
 package org.flocka.ServiceBasics
 
 import akka.actor.{PoisonPill, ReceiveTimeout}
-import akka.persistence.{PersistentActor}
-import org.flocka.ServiceBasics.MessageTypes.{Event}
+import akka.persistence.PersistentActor
+import org.flocka.ServiceBasics.MessageTypes.Event
+
 import scala.concurrent.duration.FiniteDuration
 import akka.actor._
 import akka.cluster.sharding.ShardRegion.Passivate
+import org.flocka.ServiceBasics.PersistentActorBase.InvalidOperationException
 import org.flocka.Utils.PushOutHashmapQueueBuffer
 
 /**
@@ -24,6 +26,8 @@ trait PersistentActorState {
   * Custom exceptions for all persistent actors, alter with care.
   */
 object PersistentActorBase{
+  case class InvalidOperationException(id: String, operation: String) extends Exception("Operation: " + operation + " is not valid for object: " + id)
+
   case class InvalidUserException(userId: String) extends Exception("This user: " + userId + " is not active.")
   case class InvalidPaymentException(orderId: String) extends Exception("This payment: " + orderId + " is not active.")
   case class InvalidStockException(itemId: String) extends Exception("This stock: " + itemId + " is not defined.")
@@ -40,7 +44,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   /**
     * Please don't touch!!!! It works!
     */
-  override def persistenceId = self.path.name
+  override def persistenceId = getClass.getName + self.path.name
 
   val passivateTimeout: FiniteDuration
   val snapShotInterval: Int
@@ -74,7 +78,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
 
   protected def respond(request: MessageTypes.Request): Unit = {
     if (!validateState(request)) {
-      sender() ! akka.actor.Status.Failure(PersistentActorBase.InvalidOrderException(request.key.toString))
+      sender() ! akka.actor.Status.Failure(InvalidOperationException(request.key.toString, request.getClass.getName))
     } else {
       request match {
         case command: MessageTypes.Command => sendPersistentResponse(buildResponseEvent(command))
@@ -96,7 +100,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     */
   private def getDoneEvent(request: MessageTypes.Request): Option[Event] = {
     request match {
-      case command: MessageTypes.Command => state.doneOperations.getOption(command.operationId)
+      case command: MessageTypes.Command => if(command.operationId >= 0) state.doneOperations.getOption(command.operationId) else None
       case _ => None
     }
   }
