@@ -2,7 +2,6 @@ package org.flocka.ServiceBasics
 
 import akka.actor.ActorRef
 import akka.util.Timeout
-import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import akka.pattern.{ask, pipe}
 

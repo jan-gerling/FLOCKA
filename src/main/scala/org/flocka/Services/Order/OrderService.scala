@@ -1,7 +1,6 @@
 package org.flocka.Services.Order
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.server.Directives._
@@ -10,8 +9,8 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Order.OrderServiceComs._
-import org.flocka.sagas.{SagaSharding, SagaStorage}
-
+import org.flocka.sagas.SagaComs.ExecuteSaga
+import org.flocka.sagas.{Saga, SagaSharding}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -22,13 +21,13 @@ import scala.util.{Failure, Success}
 object OrderService extends ServiceBase {
 
   override val configName: String = "order-service.conf"
-  val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "orders"
   val timeoutTime: FiniteDuration = 500 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
+    implicit val executor:ExecutionContext = system.dispatcher
 
     val SECShardRegion: ActorRef = SagaSharding.startSharding(system)
 
@@ -48,7 +47,6 @@ object OrderService extends ServiceBase {
     }
 
     def createNewOrder(userId: Long): Route ={
-      //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
       onComplete(commandHandler(CreateOrder(regionalIdManager.generateId(OrderSharding.numShards), userId))) {
         case Success(value) => complete(value.toString)
         case Failure(ex) =>
@@ -127,8 +125,11 @@ object OrderService extends ServiceBase {
       pathPrefix(service / "checkout" / LongNumber) { (orderId) ⇒
         post {
           pathEndOrSingleSlash {
-            //ToDo: add SEC for checkout order here
-            throw new UnsupportedOperationException("The service checkout is not yet supported by " + getClass)
+            val sagaFuture = commandHandler(CheckoutOrder(orderId, SECShardRegion))
+            onComplete(sagaFuture){
+              case Success(value) => complete(value.toString)
+              case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
+            }
           }
         }
       }
