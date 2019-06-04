@@ -81,7 +81,7 @@ class PaymentRepository extends PersistentActorBase {
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
   val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
 
-  val loadBalancerURI: String = config.getString("clustering.loadbalancer.uri")
+  val loadBalancerURI: String = config.getString("loadbalancer.payment.uri")
 
   // Since we have millions of users, we should passivate quickly
   context.setReceiveTimeout(passivateTimeout)
@@ -165,7 +165,7 @@ class PaymentRepository extends PersistentActorBase {
     var amount : Long = 0
     var currTuple = ""
     if (response.contains("List((")) { //has more than one item
-      val listOfTuples = response.split("List(")(1).split(",")
+      val listOfTuples = response.split("List(")(1).split("), (")
       for (tuple <- listOfTuples) {
         currTuple = tuple replaceAll ("(","")
         currTuple = tuple replaceAll (")","")
