@@ -13,7 +13,6 @@ import org.flocka.sagas.SagaComs._
 import scala.concurrent.ExecutionContext
 
 object SagaStorage {
-  val MAX_NUM_TRIES = 5
 
   def props(): Props = Props(new SagaStorage())
 }
@@ -41,6 +40,8 @@ class SagaStorage extends PersistentActor {
   val tickInitialDelay = config.getInt("recovery.tick-initial-delay") //When to check in on saga
   val tickInterval = config.getInt("recovery.tick-interval") // make sure its running every x millis
   var tick : Cancellable = _
+
+
 
   context.setReceiveTimeout(passivateTimeout)
   implicit val system: ActorSystem = context.system

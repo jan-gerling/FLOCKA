@@ -3,11 +3,14 @@ package org.flocka.sagas
 import java.net.URI
 import java.util.UUID.randomUUID
 import java.util.concurrent.TimeoutException
+
 import scala.concurrent.duration._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
 import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
+import com.typesafe.config.{Config, ConfigFactory}
+
 import scala.concurrent.{ExecutionContext, Future}
 
 object ResultState extends Enumeration {
@@ -30,6 +33,8 @@ object OperationState extends Enumeration {
 case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: String => Boolean, bestEffortReverse: Boolean = true, baseTimeout: Int = 1, timeoutScaling : Int = 1){
   lazy val forwardId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
   lazy val reverseId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
+  val config : Config = ConfigFactory.load("saga-execution-controller.conf")
+  val maxNumRetries: Int = config.getInt("max-num-retries")
 
   /**
     * Result state of this Saga Operation, e.g. SUCCESS
@@ -181,7 +186,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
 
     return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
       case exception: TimeoutException =>
-        if(numTries >= SagaStorage.MAX_NUM_TRIES && !bestEffortReverse){
+        if(numTries >= maxNumRetries && !bestEffortReverse){
           resultState = ResultState.TIMEOUT
           return Future.failed(exception)
         }else {
