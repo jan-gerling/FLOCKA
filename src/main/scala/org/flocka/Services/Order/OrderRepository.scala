@@ -94,7 +94,7 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
   override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
   implicit val executor: ExecutionContext = context.system.dispatcher
-  val randomGenerator: scala.util.Random  = scala.util.Random(getClass.getName)
+  val randomGenerator: scala.util.Random  = scala.util.Random
 
   val config: Config = ConfigFactory.load("order-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
