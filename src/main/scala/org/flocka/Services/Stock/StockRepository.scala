@@ -60,7 +60,7 @@ case class StockRepositoryState(stockItems: mutable.Map[Long, StockState], curre
   * All valid commands / queries for stock items are resolved here and then sent back to the requesitng actor (supposed to be StockService via StockActorSupervisor
   */
 class StockRepository extends PersistentActorBase{
-  override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState], new PushOutHashmapQueueBuffer[Long, Event](500))
+  override var state: PersistentActorState = new StockRepositoryState(mutable.Map.empty[Long, StockState], new PushOutHashmapQueueBuffer[Long, Event](5000))
 
   val config: Config = ConfigFactory.load("stock-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
