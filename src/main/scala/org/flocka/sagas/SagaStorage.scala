@@ -13,7 +13,7 @@ import org.flocka.sagas.SagaComs._
 import scala.concurrent.ExecutionContext
 
 object SagaStorage {
-  val MAX_NUM_TRIES = 5
+  val MAX_NUM_TRIES = 3
 
   def props(): Props = Props(new SagaStorage())
 }

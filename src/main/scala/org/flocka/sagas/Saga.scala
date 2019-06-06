@@ -1,11 +1,12 @@
 package org.flocka.sagas
 
-import akka.actor.{ActorSystem}
+import akka.actor.ActorSystem
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.sagas.SagaComs._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 
 //Possible State Machine states
 object SagaState extends Enumeration {
@@ -31,6 +32,29 @@ class Saga(sagaId: Long) {
   var maxIndex: Int = dagOfOps.size -1
   var currentIndex: Int = 0
 
+  private var timeoutTime: FiniteDuration = -1 millis
+  /**
+    * get the maximum timeout time for this Saga
+    * @return
+    */
+  def maxTimeoutTime(): FiniteDuration = {
+    //calculate timeout time if not yet done
+    if(timeoutTime.lt(0 millis)){
+      timeoutTime = 5 millis;
+
+      for(step: scala.collection.mutable.ArrayBuffer[SagaOperation] <- dagOfOps) {
+        var stepMaxExecutionTime: FiniteDuration = 0 millis;
+        for (currentOperation: SagaOperation <- step){
+          stepMaxExecutionTime = currentOperation.maxExecutionTime.max(stepMaxExecutionTime)
+        }
+
+        timeoutTime += stepMaxExecutionTime
+      }
+    }
+
+    return timeoutTime
+  }
+
   def addConcurrentOperation(operation: SagaOperation): Unit = {
     dagOfOps.last += operation
   }
@@ -39,7 +63,6 @@ class Saga(sagaId: Long) {
     val newOperations: scala.collection.mutable.ArrayBuffer[SagaOperation] = scala.collection.mutable.ArrayBuffer(operation)
     dagOfOps += newOperations
     maxIndex = dagOfOps.size - 1
-
   }
 
   /**

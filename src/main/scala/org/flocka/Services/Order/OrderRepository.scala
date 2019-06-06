@@ -143,18 +143,18 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
         return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
       case CheckoutOrder(orderId, secShardingActor) =>
-        val timeoutTime: FiniteDuration = 6 seconds
-        implicit val timeout: Timeout = new Timeout(timeoutTime)
+
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         if(!orderState.paymentStatus) {
           val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
           val saga: Saga = createCheckoutSaga(orderState, orderId, config)
+          implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime)
           val sagaFuture = commandHandler(ExecuteSaga(saga), Option(secShardingActor))
           Await.result(sagaFuture.map { responseEvent => responseEvent match {
             case SagaCompleted(_) => OrderCheckedOut(orderId, true)
             case SagaFailed(_) => OrderCheckedOut(orderId, false)
             }
-          }, timeoutTime)
+          }, saga.maxTimeoutTime)
         } else {
           return OrderCheckedOut(orderId, false)
         }
