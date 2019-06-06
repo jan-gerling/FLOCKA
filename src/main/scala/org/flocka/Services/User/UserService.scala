@@ -18,7 +18,7 @@ import scala.util.{Failure, Success}
 /**
   * Contains routes for the Rest User Service. Method bind is used to start the server.
   */
-object UserService extends ServiceBase{
+object UserService extends ServiceBase with UserEventMarshaller {
 
   override val configName: String = "user-service.conf"
   val randomGenerator: scala.util.Random  = scala.util.Random
@@ -47,7 +47,7 @@ object UserService extends ServiceBase{
     def createNewUser(): Route ={
       //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
       onComplete(commandHandler(CreateUser(regionalIdManager.generateId(UserSharding.numShards)))) {
-        case Success(value) => complete(value.toString)
+        case Success(value: UserCreated) => complete(value)
         case Failure(ex) => if(ex.toString.contains("InvalidIdException")){regionalIdManager.increaseEntropy() ;createNewUser()} else complete(s"An error occurred: ${ex.getMessage}")
       }
     }
@@ -67,7 +67,7 @@ object UserService extends ServiceBase{
         delete {
           pathEndOrSingleSlash {
             onComplete(commandHandler(DeleteUser(userId))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: UserDeleted) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
@@ -80,7 +80,7 @@ object UserService extends ServiceBase{
         get {
           pathEndOrSingleSlash {
             onComplete(queryHandler(GetCredit(userId))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: CreditGot) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
@@ -103,7 +103,7 @@ object UserService extends ServiceBase{
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(SubtractCredit(userId, amount, operationId.getOrElse{-1L}))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: CreditSubtracted) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
@@ -116,7 +116,7 @@ object UserService extends ServiceBase{
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(AddCredit(userId, amount, operationId.getOrElse{-1L}))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: CreditAdded) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
