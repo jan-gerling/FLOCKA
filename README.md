@@ -91,3 +91,17 @@ User: wdm2019akka
 PW: WakkaFlocka
 image: wdm2019akka/service-runner
 
+## Load Balancer DNS Names ##
+Users: UserServiceLoadBalancer-2117454594.eu-central-1.elb.amazonaws.com
+Stock: StockServiceLoadBalancer-2051332871.eu-central-1.elb.amazonaws.com
+Order: OrderServiceLoadBalancer-1448958749.eu-central-1.elb.amazonaws.com
+Payment: PaymentServiceLoadBalancer-578848769.eu-central-1.elb.amazonaws.com
+
+## Service Seed IP Addresses ##
+Users: 18.197.207.172
+Stock: 35.157.216.71
+Order: 3.120.129.157
+Payment: 18.194.115.211
+
+## Document DB Endpoint ##
+http://docdb-2019-06-06-16-08-11.cluster-cphvimww2ib3.eu-central-1.docdb.amazonaws.com/
