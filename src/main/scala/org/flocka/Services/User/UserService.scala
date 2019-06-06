@@ -69,7 +69,7 @@ object UserService extends ServiceBase with UserEventMarshaller {
         delete {
           pathEndOrSingleSlash {
             onComplete(commandHandler(DeleteUser(userId))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: UserDeleted) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
@@ -82,7 +82,7 @@ object UserService extends ServiceBase with UserEventMarshaller {
         get {
           pathEndOrSingleSlash {
             onComplete(queryHandler(GetCredit(userId))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: CreditGot) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
@@ -105,7 +105,7 @@ object UserService extends ServiceBase with UserEventMarshaller {
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(SubtractCredit(userId, amount, operationId.getOrElse{-1L}))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: CreditSubtracted) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
@@ -118,7 +118,7 @@ object UserService extends ServiceBase with UserEventMarshaller {
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(AddCredit(userId, amount, operationId.getOrElse{-1L}))) {
-              case Success(value) => complete(value.toString)
+              case Success(value: CreditAdded) => complete(value)
               case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
             }
           }
