@@ -1,16 +1,24 @@
 package org.flocka.Services.Order
 
+import java.net.URI
+
 import akka.actor.{Props, _}
+import akka.http.scaladsl.server.Directives.{complete, onComplete}
 import akka.persistence.SnapshotOffer
+import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.IdResolver.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
-import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
+import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
 import org.flocka.Utils.PushOutHashmapQueueBuffer
+import org.flocka.sagas.{Saga, SagaOperation}
+import org.flocka.sagas.SagaComs.{ExecuteSaga, SagaCompleted, SagaFailed}
 
 import scala.collection.mutable
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 /**
   * OrderRepository props and custom exceptions for an order.
@@ -31,17 +39,18 @@ object OrderRepository {
 case class OrderState(orderId: Long,
                      userId: Long,
                      paymentStatus: Boolean,
-                     items: mutable.ListBuffer[Long],
+                     items: mutable.ListBuffer[(Long, Long)],
                       active: Boolean) {
   def updated(event: MessageTypes.Event): OrderState = event match {
     case OrderCreated(orderId, userId) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = false, mutable.ListBuffer.empty[Long], active = true)
+      copy(orderId = orderId, userId = userId, paymentStatus = false, mutable.ListBuffer.empty[(Long, Long)], active = true)
     case OrderDeleted(orderId, true) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, mutable.ListBuffer.empty[Long], active = false)
-    case ItemAdded(orderId, itemId, true, operationId) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items += itemId, active = active)
+      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, mutable.ListBuffer.empty[(Long, Long)], active = false)
+    case ItemAdded(orderId, itemId, price, true, operationId) =>
+      val newItem: (Long, Long) = (itemId,price)
+      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items += newItem, active = active)
     case ItemRemoved(orderId, itemId, true, operationId) =>
-      copy(orderId = orderId, userId = userId, paymentStatus = paymentStatus, items -= itemId, active = active)
+      copy(orderId = orderId, userId = userId, items = items.filterNot(element => element._1 == itemId), active = active)
     case OrderCheckedOut(orderId, true) =>
       copy(orderId = orderId, userId = userId, paymentStatus = true, items = items, active = active)
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for UserActor.")
@@ -56,14 +65,14 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
 
   def updated(event: MessageTypes.Event): OrderRepositoryState = event match {
     case OrderCreated(orderId, userId) =>
-      copy(orders += orderId -> new OrderState(-1, -1, false, mutable.ListBuffer.empty[Long], false).updated(event))
+      copy(orders += orderId -> new OrderState(-1, -1, false, mutable.ListBuffer.empty[(Long, Long)], false).updated(event))
     case OrderDeleted(orderId, true) =>
       orders.get(orderId).get.updated(event)
       copy(orders -= orderId)
-    case ItemAdded(orderId, itemId, true, operationId) =>
+    case ItemAdded(orderId, _, _, true, operationId) =>
       doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
-    case ItemRemoved(orderId, itemId, true, operationId) =>
+    case ItemRemoved(orderId, _, true, operationId) =>
       doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
     case OrderCheckedOut(orderId, true) =>
@@ -72,7 +81,7 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
       /**
       Ignore these events, they have no state changes
        */
-    case ItemRemoved(_ ,_ , false, _) | ItemAdded(_ ,_ , false, _) | OrderCheckedOut(_ , false) => this
+    case ItemRemoved(_ ,_ , false, _) | ItemAdded(_ ,_ , _, false, _) | OrderCheckedOut(_ , false) => this
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for OrderActor.")
   }
 }
@@ -81,8 +90,11 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
   * Actor storing the current state of a order.
   * All valid commands/ queries for orders are resolved here and then send back to the requesting actor
   */
-class OrderRepository extends PersistentActorBase {
+class OrderRepository extends PersistentActorBase with CommandHandler{
   override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500))
+
+  implicit val executor: ExecutionContext = context.system.dispatcher
+  val randomGenerator: scala.util.Random  = scala.util.Random
 
   val config: Config = ConfigFactory.load("order-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
@@ -119,7 +131,7 @@ class OrderRepository extends PersistentActorBase {
       case AddItem(orderId, itemId, operationId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         val success = !orderState.paymentStatus
-        return ItemAdded(orderId, itemId, success, operationId)
+        return ItemAdded(orderId, itemId, randomGenerator.nextInt(100).toLong, success, operationId)
 
       case RemoveItem(orderId, itemId, operationId) =>
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
@@ -130,11 +142,22 @@ class OrderRepository extends PersistentActorBase {
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
-      case CkeckoutOrder(orderId) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
-        val success = !orderState.paymentStatus
-        return OrderCheckedOut(orderId, success)
+      case CheckoutOrder(orderId, secShardingActor) =>
 
+        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
+        if(!orderState.paymentStatus) {
+          val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
+          val saga: Saga = createCheckoutSaga(orderState, orderId, config)
+          implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime)
+          val sagaFuture = commandHandler(ExecuteSaga(saga), Option(secShardingActor))
+          Await.result(sagaFuture.map { responseEvent => responseEvent match {
+            case SagaCompleted(_) => OrderCheckedOut(orderId, true)
+            case SagaFailed(_) => OrderCheckedOut(orderId, false)
+            }
+          }, saga.maxTimeoutTime)
+        } else {
+          return OrderCheckedOut(orderId, false)
+        }
       case _ => throw new IllegalArgumentException(request.toString)
     }
   }
@@ -151,5 +174,39 @@ class OrderRepository extends PersistentActorBase {
           return true
       case _ => return getOrderState(request.key).getOrElse(return false).active
     }
+  }
+
+  def createCheckoutSaga(order: OrderState, sagaId: Long, config: Config): Saga = {
+    val orderSaga: Saga = new Saga(sagaId)
+
+    for((itemId, _) <- order.items){
+      orderSaga.addConcurrentOperation(createDecreaseStockOperation(itemId, 1, config.getString("loadbalancer.payment.uri")))
+    }
+    orderSaga.addConcurrentOperation(createPayOrderOperation(order.orderId, order.userId, config.getString("loadbalancer.stock.uri")))
+    return orderSaga
+  }
+
+  def createPayOrderOperation(orderId: Long, userId: Long, paymentServiceUri: String): SagaOperation ={
+    val paymentPostCondition: String => Boolean = new Function[String, Boolean] {
+      //ToDo: actually check for events not for strings
+      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId)
+    }
+
+    return SagaOperation(
+      URI.create(paymentServiceUri+ "/pay/" + userId + "/" + orderId),
+      URI.create(paymentServiceUri + "/cancelPayment/" + userId + "/" + orderId),
+      paymentPostCondition)
+  }
+
+  def createDecreaseStockOperation(itemId: Long, amount: Long, stockServiceUri: String): SagaOperation = {
+    val decreaseStockPostCondition: String => Boolean = new Function[String, Boolean] {
+      //ToDo: actually check for events not for strings
+      override def apply(result: String): Boolean = result.contains("DecreaseAvailability") && result.contains(itemId) && result.contains(amount)
+    }
+
+    return SagaOperation(
+      URI.create(stockServiceUri + "/stock/add/" + itemId + "/" + amount),
+      URI.create(stockServiceUri + "/stock/subtract/" + itemId + "/" + amount),
+      decreaseStockPostCondition)
   }
 }
