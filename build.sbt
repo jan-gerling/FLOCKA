@@ -20,6 +20,5 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-cluster" % "2.5.22",
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.22",
   "org.iq80.leveldb" % "leveldb" % "0.7",
-  "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1",
-  "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8"
+  "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1"
 )
