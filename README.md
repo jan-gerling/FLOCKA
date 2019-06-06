@@ -64,11 +64,9 @@ Payment: 2581
 
 ## Deployment
 
-Current deployment ideal involves a load-balancer capable of accessing the state of an AWS Autoscaling group, such that it can route to any node in said group.
+Current deployment ideal involves a load-balancer per service capable of accessing the state of an AWS Autoscaling group, such that it can route to any node in said group.
 
-Each node on startup, runs docker-compose up on the final yaml file, setting up all necessary services and connecting to the seed nodes.
-
-To build our own Amazon Image, we need a base image (ubuntu or whatever), install docker and docker-compose. Run docker as a service. By running docker-compose up the image is pulled and ran automatically.
+To build our own Amazon Image, we need a base image (ubuntu or whatever), install docker and docker-compose. Run docker as a service. 
 
 ### Deployment Details
 
@@ -81,6 +79,13 @@ docker-compose-local.yml -- Runs each service, as well as mongo for local testin
 docker-compose-deploy.yml -- Runs each service, in deployment mode.
 
 build_and_run.sh -- Will build the jar and docker image locally, running docker-compose automatically.
+run_X_service.sh -- runs a specific service, needs ENV VARS:
+* $SEED0_IP -- The IP of the Seed node
+* $X_LB_URI -- LB IP of each service, necessary
+* $MONGO_URI -- URI of mongoDB
+
+Use internal IPs where possible
+
 ### Docker credentials
 User: wdm2019akka
 PW: WakkaFlocka
