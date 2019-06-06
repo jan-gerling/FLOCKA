@@ -23,5 +23,5 @@ trait ServiceBase extends CommandHandler with QueryHandler {
     * @param system the ActorSystem
     * @return
     */
-  def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem): Future[ServerBinding]
+  def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding]
 }

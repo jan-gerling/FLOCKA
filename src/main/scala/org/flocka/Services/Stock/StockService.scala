@@ -25,7 +25,7 @@ object StockService extends ServiceBase {
   val timeoutTime: FiniteDuration = 500 milliseconds
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
- def bind(shardRegion: ActorRef, executor: ExecutionContext)(implicit system: ActorSystem) : Future[ServerBinding] = {
+ def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext) : Future[ServerBinding] = {
    val regionalIdManager: IdGenerator = new IdGenerator()
 
    /*
@@ -33,14 +33,14 @@ object StockService extends ServiceBase {
     Giving itemId -1 is no itemId, only for creating new stock items
     */
    def commandHandler(command: MessageTypes.Command): Future[Any] = {
-     super.commandHandler(command, Option(shardRegion), timeoutTime, executor)
+     super.commandHandler(command, Option(shardRegion))
    }
 
    /*
     similar to the command handler
     */
    def queryHandler(query: MessageTypes.Query): Future [Any] = {
-     super.queryHandler(query, Option(shardRegion), timeoutTime, executor)
+     super.queryHandler(query, Option(shardRegion))
    }
 
    val postCreateItemRoute: Route = {
@@ -70,7 +70,7 @@ object StockService extends ServiceBase {
     }
 
     val postDecreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "subtract" / LongNumber / LongNumber / LongNumber.?) { ( itemId, amount, operationId) ⇒
+      pathPrefix(service /  "subtract" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { ( itemId, amount, operationId) ⇒
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(DecreaseAvailability(itemId, amount, operationId.getOrElse {-1L}))) {
@@ -83,7 +83,7 @@ object StockService extends ServiceBase {
     }
 
     val postIncreaseItemAvailabilityRoute: Route = {
-      pathPrefix(service /  "add" / LongNumber / LongNumber / LongNumber.?) { ( itemId, amount, operationId) ⇒
+      pathPrefix(service /  "add" / LongNumber / LongNumber ~ Slash.? ~ LongNumber.?) { ( itemId, amount, operationId) ⇒
         post{
           pathEndOrSingleSlash {
             onComplete(commandHandler(IncreaseAvailability(itemId, amount, operationId.getOrElse{-1L}))) {
