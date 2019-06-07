@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  user-service:
+    network_mode: host
+    image:  wdm2019akka/service-runner-mongo
+    command: u -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-user@${SEED0_IP}:2551  -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2551 -Dakka.contrib.persistence.mongodb.mongo.mongouri=${MONGO_URI}
+
+  stock-service:
+    network_mode: host
+    image:  wdm2019akka/service-runner-mongo
+    command: s -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-stock@${SEED0_IP}:2561  -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2561 -Dakka.contrib.persistence.mongodb.mongo.mongouri=${MONGO_URI}
+
+  order-service:
+    network_mode: host
+    image:  wdm2019akka/service-runner-mongo
+    command: o -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-order@${SEED0_IP}:2571  -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2571 -Dakka.contrib.persistence.mongodb.mongo.mongouri=${MONGO_URI}
+
+  payment-service:
+    network_mode: host
+    image:  wdm2019akka/service-runner-mongo
+    command: p -Dakka.cluster.seed-nodes.0=akka.tcp://flocka-payment@${SEED0_IP}:2581  -Dakka.remote.netty.tcp.hostname=${MY_IP} -Dakka.remote.netty.tcp.port=2581 -Dakka.contrib.persistence.mongodb.mongo.mongouri=${MONGO_URI}
+
