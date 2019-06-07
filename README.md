@@ -12,7 +12,7 @@ Check this [issue](https://github.com/jan-gerling/lam-dal/issues/7) to get famil
 - Wednesday morning from 09:00 till 10:45 - additional Team Meeting or backup
 - **21st May** - Milestone 01 - feature complete **protoype**
 - **28th May** - Milestone 02 - **first iteration** with stress testing and improvements
-- **05th June** - Milestone 03 - **final deliverable**
+- **10th June** - Milestone 03 - **final deliverable**
 
 
 
