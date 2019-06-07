@@ -11,6 +11,7 @@ import org.flocka.ServiceBasics.IdResolver.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
+import org.flocka.Services.Payment.PaymentServiceComs.PaymentPayed
 import org.flocka.Utils.PushOutHashmapQueueBuffer
 import org.flocka.sagas.{Saga, SagaOperation}
 import org.flocka.sagas.SagaComs.{ExecuteSaga, SagaCompleted, SagaFailed}
@@ -197,7 +198,7 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
   def createPayOrderOperation(orderId: Long, userId: Long, paymentServiceUri: String): SagaOperation ={
     val paymentPostCondition: String => Boolean = new Function[String, Boolean] {
       //ToDo: actually check for events not for strings
-      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId)
+      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId.toString)
     }
 
     return SagaOperation(
@@ -209,7 +210,7 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
   def createDecreaseStockOperation(itemId: Long, amount: Long, stockServiceUri: String): SagaOperation = {
     val decreaseStockPostCondition: String => Boolean = new Function[String, Boolean] {
       //ToDo: actually check for events not for strings
-      override def apply(result: String): Boolean = result.contains("AvailabilityDecreased") && result.contains(itemId) && result.contains(amount) && result.contains("true")
+      override def apply(result: String): Boolean = result.contains("AvailabilityDecreased") && result.contains("true") && result.contains(itemId.toString)
     }
 
     return SagaOperation(

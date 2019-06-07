@@ -123,7 +123,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     executionState = OperationState.PENDING
     val finalUri: String = buildPath(operationId, path)
 
-    println("Do operation: " + path)
+    println("Do operation: " + finalUri)
 
     val responseFuture: Future[HttpResponse] = sendRequest(finalUri)
     responseFuture.map( response ⇒
@@ -139,15 +139,19 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     */
   private def forwardOperationDone: Boolean => Boolean={
     case true   =>
+      println("Finished forward operation: " + pathForward + " in state " + resultState)
+
       if( resultState == ResultState.NONE){
         resultState = ResultState.SUCCESS
       } else if(resultState == ResultState.TIMEOUT){
         throw new TimeoutException("SagaOperation: " + this.toString + " timed out without timeout strategy.")
       } else {throw new IllegalStateException("SagaExecutionState: " + executionState + " and SagaOperationState: " + resultState + " are an invalid combination for forward operations." )}
       executionState = OperationState.DONE
-      println("Finished forward operation: " + pathForward + " in state " + resultState)
+      println("Finished forward operation: " + pathForward + " and set state to " + resultState)
       true
     case false  =>
+      println("Failed forward operation: " + pathForward + " in state " + resultState)
+
       if(resultState == ResultState.NONE) {
         resultState = ResultState.FAILURE
         executionState = OperationState.IDLE
@@ -156,7 +160,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
       } else{
         throw new Exception("Saga Operation was incorrectly executed")
       }
-      println("Failed forward operation: " + pathForward + " in state " + resultState)
+      println("Failed forward operation: " + pathForward + " and set state to " + resultState)
       false
   }
 
@@ -165,6 +169,8 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     */
   private def reverseOperationDone: Boolean => Boolean={
     case true   =>
+      println("Finished reverse operation: " + pathRevert + " in state " + resultState)
+
       if(resultState == ResultState.SUCCESS){
         executionState = OperationState.DONE
         resultState == ResultState.NONE
@@ -178,9 +184,11 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
             " and SagaOperationState: " + resultState +
             " are an invalid combination for reverse operations." )
       }
-      println("Finished reverse operation: " + pathRevert + " in state " + resultState)
+      println("Finished revert operation: " + pathForward + " and set state to " + resultState)
       true
     case false  =>
+      println("Failed reverse operation: " + pathRevert + " in state " + resultState)
+
       if (resultState == ResultState.SUCCESS && bestEffortReverse) {
         executionState = OperationState.DONE
       } else if (resultState == ResultState.TIMEOUT && bestEffortReverse) {
@@ -192,7 +200,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
       } else {
         throw new Exception("Saga Operation was incorrectly executed")
       }
-      println("Failed reverse operation: " + pathRevert + " in state " + resultState)
+      println("Failed revert operation: " + pathForward + " and set state to " + resultState)
       false
   }
 
@@ -202,10 +210,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
 
   private def sendRequest(path: String, numTries: Int = 0)
                          (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(calulcateTimeoutTime(numTries))
-    val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
-
-    return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
+    return Http(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString)).recover{
       case exception: TimeoutException =>
         if(numTries >= SagaStorage.MAX_NUM_TRIES && !bestEffortReverse){
           resultState = ResultState.TIMEOUT

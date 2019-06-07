@@ -118,16 +118,12 @@ class PaymentRepository extends PersistentActorBase {
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
         futureOrder.map { response =>
-          if (checkIfOrderExist(response.toString())){
-            val amount = getTotalOrderCost(response.entity.toString())
+          if (checkIfOrderExist(response.entity.toString)){
+            val amount = getTotalOrderCost(response.entity.toString)
             val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + userId + "/" + amount
             val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, decreaseCreditUri)
             futureCredit.map { response =>
-              println(response.entity)
-              println(response.entity.toString.contains("CreditSubtracted"))
-              println(response.entity.toString.contains("true"))
               val success: Boolean = response.entity.toString.contains("CreditSubtracted") && response.entity.toString.contains("true")
-              println(success)
               resultEvent = PaymentPayed(userId, orderId, success, operationId)
               done = true
             }
@@ -136,11 +132,10 @@ class PaymentRepository extends PersistentActorBase {
             done = true
           }
         }
-        while(!done && elapsedTime < TIMEOUT_TIME.toMillis){
+        while(!done && elapsedTime < 3 * TIMEOUT_TIME.toMillis){
           elapsedTime += 15
           Thread.sleep(15)
         }
-        println(resultEvent)
         return resultEvent
       case CancelPayment(userId, orderId, operationId) =>
         var elapsedTime: Long = 0
@@ -149,8 +144,8 @@ class PaymentRepository extends PersistentActorBase {
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
         futureOrder.map { response =>
-          if (checkIfOrderExist(response.toString())){
-            val amount = getTotalOrderCost(response.entity.toString())
+          if (checkIfOrderExist(response.entity.toString)){
+            val amount = getTotalOrderCost(response.entity.toString)
             val increaseCreditUri = loadBalancerURIUser + "/users/credit/add/" + userId + "/" + amount
             val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, increaseCreditUri)
             futureCredit.map { response =>
