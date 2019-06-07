@@ -1,9 +1,11 @@
 package org.flocka.Services.Payment
 
+import java.util.concurrent.TimeoutException
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.HttpRequest
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods, HttpRequest, HttpResponse}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
@@ -23,7 +25,7 @@ object PaymentService extends ServiceBase {
 
   override val configName: String = "payment-service.conf"
   val service = "payment"
-  val timeoutTime: FiniteDuration = 500 millisecond
+  val timeoutTime: FiniteDuration = 4000 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
