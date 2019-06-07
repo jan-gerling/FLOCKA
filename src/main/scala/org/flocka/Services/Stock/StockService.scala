@@ -22,7 +22,7 @@ object StockService extends ServiceBase {
   override val configName: String = "stock-service.conf"
   val randomGenerator: scala.util.Random = scala.util.Random
   val service = "stock"
-  val timeoutTime: FiniteDuration = 500 milliseconds
+  val timeoutTime: FiniteDuration = 2000 milliseconds
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
  def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext) : Future[ServerBinding] = {
