@@ -23,7 +23,7 @@ object UserService extends ServiceBase{
   override val configName: String = "user-service.conf"
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "users"
-  val timeoutTime: FiniteDuration = 500 millisecond
+  val timeoutTime: FiniteDuration = 2000 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {

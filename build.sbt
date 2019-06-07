@@ -22,8 +22,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
   "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
   "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1",
-  //"com.github.scullxbones" %% "akka-persistence-mongo-rxmongo" % "2.2.6",
+  "com.github.scullxbones" %% "akka-persistence-mongo-rxmongo" % "2.2.6",
   "org.apache.logging.log4j" % "log4j-core" % "2.11.2",
-  "org.apache.logging.log4j" % "log4j-api" % "2.11.2",
-	"com.typesafe.akka" %% "akka-persistence-dynamodb" % "1.1.1"
+  "org.apache.logging.log4j" % "log4j-api" % "2.11.2"
+	//"com.typesafe.akka" %% "akka-persistence-dynamodb" % "1.1.1"
 )
