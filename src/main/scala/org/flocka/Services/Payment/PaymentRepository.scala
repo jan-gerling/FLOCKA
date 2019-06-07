@@ -76,7 +76,7 @@ class PaymentRepository extends PersistentActorBase {
   implicit val executor: ExecutionContext = system.dispatcher
 
   val MAX_NUM_TRIES = 3
-  val TIMEOUT_TIME = 4000 millisecond
+  val TIMEOUT_TIME = 5000 millisecond
 
   val config: Config = ConfigFactory.load("payment-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds

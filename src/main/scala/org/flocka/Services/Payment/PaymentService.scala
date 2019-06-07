@@ -25,7 +25,7 @@ object PaymentService extends ServiceBase {
 
   override val configName: String = "payment-service.conf"
   val service = "payment"
-  val timeoutTime: FiniteDuration = 4000 millisecond
+  val timeoutTime: FiniteDuration = 5000 millisecond
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
