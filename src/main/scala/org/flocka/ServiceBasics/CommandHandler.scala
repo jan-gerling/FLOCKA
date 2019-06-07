@@ -14,23 +14,15 @@ trait CommandHandler {
   @param command command for an data base objects value
   @param targetActor the target actor for the given command
   @param pipeToActor if the current actor is not supposed to retrieve the result, pipe it to this actor
-  @param postConditions if wanted apply conditions for the results of the given command
   @return is supposed to be future of type UserCommunication.Event.
     */
     def commandHandler(command: MessageTypes.Command,
                        targetActor: Option[ActorRef],
-                       pipeToActor: Option[ActorRef] = None,
-                       postConditions: Any => Boolean = _ => true)
+                       pipeToActor: Option[ActorRef] = None)
                       (implicit timeout: Timeout, executor: ExecutionContext): Future[Any] = {
       targetActor match {
       case Some(actorRef: ActorRef) =>
         val actorFuture = actorRef ? command
-        //ToDo: how to handle unexpected/ unwanted results?
-        //ToDo: how to handle exceptions? aside from supervisor strategies?
-        actorFuture.filter (postConditions).recover {
-          case m: NoSuchElementException => 0
-        }
-
         pipeToActor match {
 
           case Some(receivingActor) =>

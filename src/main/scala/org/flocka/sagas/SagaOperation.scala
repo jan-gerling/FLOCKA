@@ -8,7 +8,9 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
 import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
+import org.flocka.sagas
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Success, Try}
 
 object ResultState extends Enumeration {
   val SUCCESS, FAILURE, TIMEOUT, NONE = Value
@@ -27,7 +29,7 @@ object OperationState extends Enumeration {
   * @param baseTimeout default amount of time to wait for the operation -- having this configurable per operation is a good idea
   * @param timeoutScaling amount of extra time to wait every retry
   */
-case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: String => Boolean, bestEffortReverse: Boolean = true, baseTimeout: Int = 1, timeoutScaling : Int = 1){
+case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: String => Boolean, bestEffortReverse: Boolean = true, baseTimeout: FiniteDuration = 200 milliseconds, timeoutScaling: Float = 1.7F){
   lazy val forwardId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
   lazy val reverseId: Long = Math.abs(randomUUID().toString.hashCode.toLong)
 
@@ -40,6 +42,26 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     * Current execution state of this SagaOperation, e.g. IDLE
     */
   var executionState = OperationState.IDLE
+
+  /**
+    * Get the maximum execution time for this operation including retries for timeouts
+    */
+  def maxExecutionTime(): FiniteDuration = {
+    var sum: FiniteDuration = (5 millis);
+    for (i <- 1 to sagas.SagaStorage.MAX_NUM_TRIES)
+      sum += calulcateTimeoutTime(i)
+    return sum
+  }
+
+  /**
+    * Calculate the timeout time for the current amount of connection tries.
+    */
+  private def calulcateTimeoutTime(currentTry: Int): FiniteDuration = {
+    return Try(baseTimeout * math.pow(timeoutScaling, currentTry)) match {
+      case Success(time: FiniteDuration) => time
+      case _ => throw new IllegalArgumentException("Illegal timeout sclaing: " + timeoutScaling)
+    }
+  }
 
   /**
     * @return was this SagaOperation already executed and finished?
@@ -175,8 +197,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
 
   private def sendRequest(path: String, numTries: Int = 0)
                          (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
-
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(baseTimeout + timeoutScaling * numTries seconds)
+    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(calulcateTimeoutTime(numTries))
     val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
 
     return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
