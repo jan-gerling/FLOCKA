@@ -137,15 +137,20 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
   /**
     * Evaluate the condition of the forward operation and the current SagaOperation state
     */
-  private def forwardOperationDone: Boolean => Boolean={
+  private def forwardOperationDone: Boolean => Boolean ={
     case true   =>
       println("Finished forward operation: " + pathForward + " in state " + resultState)
 
       if( resultState == ResultState.NONE){
         resultState = ResultState.SUCCESS
-      } else if(resultState == ResultState.TIMEOUT){
+      }
+      else if(resultState == ResultState.TIMEOUT){
         throw new TimeoutException("SagaOperation: " + this.toString + " timed out without timeout strategy.")
-      } else {throw new IllegalStateException("SagaExecutionState: " + executionState + " and SagaOperationState: " + resultState + " are an invalid combination for forward operations." )}
+      }
+      else {
+        throw new IllegalStateException("SagaExecutionState: " + executionState + " and SagaOperationState: "
+          + resultState + " are an invalid combination for forward operations." )
+      }
       executionState = OperationState.DONE
       println("Finished forward operation: " + pathForward + " and set state to " + resultState)
       true
@@ -155,9 +160,11 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
       if(resultState == ResultState.NONE) {
         resultState = ResultState.FAILURE
         executionState = OperationState.IDLE
-      } else if(resultState == ResultState.TIMEOUT){
+      }
+      else if(resultState == ResultState.TIMEOUT){
         executionState = OperationState.DONE
-      } else{
+      }
+      else{
         throw new Exception("Saga Operation was incorrectly executed")
       }
       println("Failed forward operation: " + pathForward + " and set state to " + resultState)
@@ -218,6 +225,10 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
         }else {
           return sendRequest(path, numTries + 1)
         }
+      case exception: Exception =>
+        print("Sending request to " + path + " failed with " + exception)
+        resultState = ResultState.FAILURE
+        return Future.failed(exception)
     }
   }
 }
