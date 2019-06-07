@@ -100,6 +100,8 @@ class Saga(sagaId: Long) {
     while(!completedExecution) {
       val stepSuccess = executeStep()
 
+      println("In step: " + currentIndex + " in state: " + currentState)
+
       //success
       if(stepSuccess && currentState == SagaState.PENDING){
         currentIndex += 1

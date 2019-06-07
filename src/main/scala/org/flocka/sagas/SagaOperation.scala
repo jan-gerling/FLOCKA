@@ -123,6 +123,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     executionState = OperationState.PENDING
     val finalUri: String = buildPath(operationId, path)
 
+    println("Do operation: " + path)
 
     val responseFuture: Future[HttpResponse] = sendRequest(finalUri)
     responseFuture.map( response ⇒
@@ -144,6 +145,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
         throw new TimeoutException("SagaOperation: " + this.toString + " timed out without timeout strategy.")
       } else {throw new IllegalStateException("SagaExecutionState: " + executionState + " and SagaOperationState: " + resultState + " are an invalid combination for forward operations." )}
       executionState = OperationState.DONE
+      println("Finished forward operation: " + pathForward + " in state " + resultState)
       true
     case false  =>
       if(resultState == ResultState.NONE) {
@@ -154,6 +156,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
       } else{
         throw new Exception("Saga Operation was incorrectly executed")
       }
+      println("Failed forward operation: " + pathForward + " in state " + resultState)
       false
   }
 
@@ -175,6 +178,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
             " and SagaOperationState: " + resultState +
             " are an invalid combination for reverse operations." )
       }
+      println("Finished reverse operation: " + pathRevert + " in state " + resultState)
       true
     case false  =>
       if (resultState == ResultState.SUCCESS && bestEffortReverse) {
@@ -188,6 +192,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
       } else {
         throw new Exception("Saga Operation was incorrectly executed")
       }
+      println("Failed reverse operation: " + pathRevert + " in state " + resultState)
       false
   }
 

@@ -146,15 +146,23 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
 
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         if(!orderState.paymentStatus) {
+          var resultEvent = OrderCheckedOut(-1, false)
+          var pending = false
+          var elapsedTime: Duration = 0 millis;
+
           val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
           val saga: Saga = createCheckoutSaga(orderState, orderId, config)
           implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime)
           val sagaFuture = commandHandler(ExecuteSaga(saga), Option(secShardingActor))
-          Await.result(sagaFuture.map { responseEvent => responseEvent match {
-            case SagaCompleted(_) => OrderCheckedOut(orderId, true)
-            case SagaFailed(_) => OrderCheckedOut(orderId, false)
-            }
-          }, saga.maxTimeoutTime)
+            sagaFuture.map { responseEvent => responseEvent match {
+              case SagaCompleted(_) => resultEvent = OrderCheckedOut(orderId, true); pending = true
+              case SagaFailed(_) => resultEvent = OrderCheckedOut(orderId, false); pending = true
+            }}
+          while(!pending && elapsedTime < 2 * saga.maxTimeoutTime){
+            Thread.sleep(15)
+            elapsedTime = elapsedTime + (15 millis)
+          }
+          return  resultEvent
         } else {
           return OrderCheckedOut(orderId, false)
         }
@@ -180,9 +188,9 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
     val orderSaga: Saga = new Saga(sagaId)
 
     for((itemId, _) <- order.items){
-      orderSaga.addConcurrentOperation(createDecreaseStockOperation(itemId, 1, config.getString("loadbalancer.payment.uri")))
+      orderSaga.addConcurrentOperation(createDecreaseStockOperation(itemId, 1, config.getString("loadbalancer.stock.uri")))
     }
-    orderSaga.addConcurrentOperation(createPayOrderOperation(order.orderId, order.userId, config.getString("loadbalancer.stock.uri")))
+    orderSaga.addConcurrentOperation(createPayOrderOperation(order.orderId, order.userId, config.getString("loadbalancer.payment.uri")))
     return orderSaga
   }
 
@@ -193,20 +201,20 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
     }
 
     return SagaOperation(
-      URI.create(paymentServiceUri+ "/pay/" + userId + "/" + orderId),
-      URI.create(paymentServiceUri + "/cancelPayment/" + userId + "/" + orderId),
+      URI.create(paymentServiceUri+ "/payment/pay/" + userId + "/" + orderId),
+      URI.create(paymentServiceUri + "/payment/cancelPayment/" + userId + "/" + orderId),
       paymentPostCondition)
   }
 
   def createDecreaseStockOperation(itemId: Long, amount: Long, stockServiceUri: String): SagaOperation = {
     val decreaseStockPostCondition: String => Boolean = new Function[String, Boolean] {
       //ToDo: actually check for events not for strings
-      override def apply(result: String): Boolean = result.contains("DecreaseAvailability") && result.contains(itemId) && result.contains(amount)
+      override def apply(result: String): Boolean = result.contains("AvailabilityDecreased") && result.contains(itemId) && result.contains(amount) && result.contains("true")
     }
 
     return SagaOperation(
-      URI.create(stockServiceUri + "/stock/add/" + itemId + "/" + amount),
       URI.create(stockServiceUri + "/stock/subtract/" + itemId + "/" + amount),
+      URI.create(stockServiceUri + "/stock/add/" + itemId + "/" + amount),
       decreaseStockPostCondition)
   }
 }
