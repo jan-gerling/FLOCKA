@@ -114,11 +114,12 @@ class PaymentRepository extends PersistentActorBase {
       case PayPayment(userId, orderId, operationId) =>
         var elapsedTime: Long = 0
         var done: Boolean = false
-        var resultEvent: PaymentPayed = PaymentPayed(userId, -1, false, operationId)
+        var resultEvent: PaymentPayed = PaymentPayed(-1, -1, false, -1)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
         futureOrder.map { response =>
           if (checkIfOrderExist(response.entity.toString)){
+            println(response.entity)
             val amount = getTotalOrderCost(response.entity.toString)
             val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + userId + "/" + amount
             val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, decreaseCreditUri)
@@ -126,24 +127,31 @@ class PaymentRepository extends PersistentActorBase {
               val success: Boolean = response.entity.toString.contains("CreditSubtracted") && response.entity.toString.contains("true")
               resultEvent = PaymentPayed(userId, orderId, success, operationId)
               done = true
+            }.recover {case _ =>
+              done = true
+              resultEvent = PaymentPayed(userId, orderId, false, operationId)
             }
           }
           else {
             done = true
           }
+        }.recover {case _ =>
+          done = true
+          resultEvent = PaymentPayed(userId, orderId, false, operationId)
         }
         while(!done && elapsedTime < 3 * TIMEOUT_TIME.toMillis){
           elapsedTime += 15
           Thread.sleep(15)
         }
-        return resultEvent
+        resultEvent
       case CancelPayment(userId, orderId, operationId) =>
         var elapsedTime: Long = 0
         var done: Boolean = false
-        var resultEvent: PaymentCanceled = PaymentCanceled(userId, operationId, false, operationId)
+        var resultEvent: MessageTypes.Event = PaymentCanceled(-1, -1, false, -1)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
         futureOrder.map { response =>
+          println(response.entity)
           if (checkIfOrderExist(response.entity.toString)){
             val amount = getTotalOrderCost(response.entity.toString)
             val increaseCreditUri = loadBalancerURIUser + "/users/credit/add/" + userId + "/" + amount
@@ -152,11 +160,17 @@ class PaymentRepository extends PersistentActorBase {
               val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
               resultEvent = PaymentCanceled(userId, orderId, success, operationId)
               done = true
+            }.recover {case _ =>
+              done = true
+              resultEvent = PaymentCanceled(userId, orderId, false, operationId)
             }
           }
           else {
             done = true
           }
+        }.recover {case _ =>
+          done = true
+          resultEvent = PaymentCanceled(userId, orderId, false, operationId)
         }
         while(!done && elapsedTime < TIMEOUT_TIME.toMillis){
           elapsedTime += 15
@@ -217,7 +231,7 @@ class PaymentRepository extends PersistentActorBase {
           println(exception)
           return sendRequest(method, path, numTries + 1)
         }
-      case ex@ _ => throw new Exception(ex)
+      case ex@ _ => return Future.failed(ex)
     }
   }
 }
