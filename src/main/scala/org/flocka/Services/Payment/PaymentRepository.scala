@@ -127,17 +127,11 @@ class PaymentRepository extends PersistentActorBase {
               val success: Boolean = response.entity.toString.contains("CreditSubtracted") && response.entity.toString.contains("true")
               resultEvent = PaymentPayed(userId, orderId, success, operationId)
               done = true
-            }.recover {case _ =>
-              done = true
-              resultEvent = PaymentPayed(userId, orderId, false, operationId)
             }
           }
           else {
             done = true
           }
-        }.recover {case _ =>
-          done = true
-          resultEvent = PaymentPayed(userId, orderId, false, operationId)
         }
         while(!done && elapsedTime < 3 * TIMEOUT_TIME.toMillis){
           elapsedTime += 15
@@ -160,17 +154,11 @@ class PaymentRepository extends PersistentActorBase {
               val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
               resultEvent = PaymentCanceled(userId, orderId, success, operationId)
               done = true
-            }.recover {case _ =>
-              done = true
-              resultEvent = PaymentCanceled(userId, orderId, false, operationId)
             }
           }
           else {
             done = true
           }
-        }.recover {case _ =>
-          done = true
-          resultEvent = PaymentCanceled(userId, orderId, false, operationId)
         }
         while(!done && elapsedTime < TIMEOUT_TIME.toMillis){
           elapsedTime += 15
@@ -231,7 +219,8 @@ class PaymentRepository extends PersistentActorBase {
           println(exception)
           return sendRequest(method, path, numTries + 1)
         }
-      case ex@ _ => return Future.failed(ex)
+      case ex@ _ =>
+        return Future.failed(ex)
     }
   }
 }

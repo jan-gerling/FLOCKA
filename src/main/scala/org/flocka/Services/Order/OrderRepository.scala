@@ -16,6 +16,7 @@ import org.flocka.Utils.PushOutHashmapQueueBuffer
 import org.flocka.sagas.{Saga, SagaOperation}
 import org.flocka.sagas.SagaComs.{ExecuteSaga, SagaCompleted, SagaFailed}
 
+import akka.pattern.{ask, pipe}
 import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -144,7 +145,6 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
         return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
       case CheckoutOrder(orderId, secShardingActor) =>
-
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         if(!orderState.paymentStatus) {
           var resultEvent = OrderCheckedOut(-1, false)
@@ -153,8 +153,12 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
 
           val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
           val saga: Saga = createCheckoutSaga(orderState, orderId, config)
-          implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime)
-          val sagaFuture = commandHandler(ExecuteSaga(saga), Option(secShardingActor))
+          implicit val timeout: Timeout = new Timeout(12000 millis)
+          val sagaFuture = secShardingActor ? ExecuteSaga(saga, self)
+          sagaFuture.onComplete {
+            case Success(value) => println("success " + value);
+            case Failure(exception) => throw new Exception(exception)
+          }
             sagaFuture.map { responseEvent => responseEvent match {
               case SagaCompleted(_) => resultEvent = OrderCheckedOut(orderId, true); pending = true
               case SagaFailed(_) => resultEvent = OrderCheckedOut(orderId, false); pending = true
@@ -163,7 +167,7 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
             Thread.sleep(15)
             elapsedTime = elapsedTime + (15 millis)
           }
-          return  resultEvent
+          return resultEvent
         } else {
           return OrderCheckedOut(orderId, false)
         }
@@ -198,7 +202,7 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
   def createPayOrderOperation(orderId: Long, userId: Long, paymentServiceUri: String): SagaOperation ={
     val paymentPostCondition: String => Boolean = new Function[String, Boolean] {
       //ToDo: actually check for events not for strings
-      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId.toString)
+      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId.toString) && result.contains(userId.toString)
     }
 
     return SagaOperation(

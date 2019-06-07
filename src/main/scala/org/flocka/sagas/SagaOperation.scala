@@ -3,14 +3,16 @@ package org.flocka.sagas
 import java.net.URI
 import java.util.UUID.randomUUID
 import java.util.concurrent.TimeoutException
+
 import scala.concurrent.duration._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
 import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
 import org.flocka.sagas
+
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 object ResultState extends Enumeration {
   val SUCCESS, FAILURE, TIMEOUT, NONE = Value
@@ -126,6 +128,11 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     println("Do operation: " + finalUri)
 
     val responseFuture: Future[HttpResponse] = sendRequest(finalUri)
+    responseFuture.onComplete {
+      case Success(response) => println(response.entity)
+      case Failure(exception) => println(exception)
+    }
+
     responseFuture.map( response ⇒
       if(forward)
         forwardOperationDone(conditions(response.toString))
@@ -137,7 +144,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
   /**
     * Evaluate the condition of the forward operation and the current SagaOperation state
     */
-  private def forwardOperationDone: Boolean => Boolean ={
+  private def forwardOperationDone: Boolean => Boolean = {
     case true   =>
       println("Finished forward operation: " + pathForward + " in state " + resultState)
 
@@ -174,7 +181,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
   /**
     * Evaluate the condition of the reverse operation and the current SagaOperation state
     */
-  private def reverseOperationDone: Boolean => Boolean={
+  private def reverseOperationDone: Boolean => Boolean = {
     case true   =>
       println("Finished reverse operation: " + pathRevert + " in state " + resultState)
 

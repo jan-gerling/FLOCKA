@@ -24,7 +24,6 @@ trait CommandHandler {
       case Some(actorRef: ActorRef) =>
         val actorFuture = actorRef ? command
         pipeToActor match {
-
           case Some(receivingActor) =>
             actorFuture pipeTo receivingActor
           case None => return actorFuture
