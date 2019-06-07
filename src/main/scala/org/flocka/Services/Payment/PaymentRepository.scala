@@ -76,7 +76,7 @@ class PaymentRepository extends PersistentActorBase {
   implicit val executor: ExecutionContext = system.dispatcher
 
   val MAX_NUM_TRIES = 3
-  val TIMOUT_TIME = 300 millisecond
+  val TIMEOUT_TIME = 4000 millisecond
 
   val config: Config = ConfigFactory.load("payment-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
@@ -112,44 +112,62 @@ class PaymentRepository extends PersistentActorBase {
   def buildResponseEvent(request: MessageTypes.Request): Event = {
     request match {
       case PayPayment(userId, orderId, operationId) =>
+        var elapsedTime: Long = 0
+        var done: Boolean = false
+        var resultEvent: PaymentPayed = PaymentPayed(userId, -1, false, operationId)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
-        futureOrder.onComplete {
-          case Success(value) => println(value)
-          case Failure(ex) => println(ex)
+        futureOrder.map { response =>
+          if (checkIfOrderExist(response.toString())){
+            val amount = getTotalOrderCost(response.entity.toString())
+            val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + userId + "/" + amount
+            val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, decreaseCreditUri)
+            futureCredit.map { response =>
+              println(response.entity)
+              println(response.entity.toString.contains("CreditSubtracted"))
+              println(response.entity.toString.contains("true"))
+              val success: Boolean = response.entity.toString.contains("CreditSubtracted") && response.entity.toString.contains("true")
+              println(success)
+              resultEvent = PaymentPayed(userId, orderId, success, operationId)
+              done = true
+            }
+          }
+          else {
+            done = true
+          }
         }
-
-        return PaymentPayed(userId, orderId, false, operationId)
-        Await.result(futureOrder.map { response =>
-          println(response)
-          if (!checkIfOrderExist(response.toString())){
-            throw new InvalidOperationException(persistenceId, request.toString)
-          }
-          val amount = getTotalOrderCost(response.toString())
-          val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + userId + "/" + amount
-          val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, decreaseCreditUri)
-          Await.result[Event](futureCredit.map { response =>
-            val success: Boolean = response.toString.contains("CreditSubtracted") && response.toString.contains("true")
-            PaymentPayed(userId, orderId, success, operationId)
-          }, TIMOUT_TIME)
-        }, TIMOUT_TIME)
-
+        while(!done && elapsedTime < TIMEOUT_TIME.toMillis){
+          elapsedTime += 15
+          Thread.sleep(15)
+        }
+        println(resultEvent)
+        return resultEvent
       case CancelPayment(userId, orderId, operationId) =>
+        var elapsedTime: Long = 0
+        var done: Boolean = false
+        var resultEvent: PaymentCanceled = PaymentCanceled(userId, operationId, false, operationId)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
         val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
-
-        Await.result(futureOrder.map { response =>
-          if (!checkIfOrderExist(response.toString())){
-            throw new InvalidOperationException(persistenceId, request.toString)
+        futureOrder.map { response =>
+          if (checkIfOrderExist(response.toString())){
+            val amount = getTotalOrderCost(response.entity.toString())
+            val increaseCreditUri = loadBalancerURIUser + "/users/credit/add/" + userId + "/" + amount
+            val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, increaseCreditUri)
+            futureCredit.map { response =>
+              val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
+              resultEvent = PaymentCanceled(userId, orderId, success, operationId)
+              done = true
+            }
           }
-          val amount = getTotalOrderCost(response.toString())
-          val decreaseCreditUri = loadBalancerURIUser + "/users/credit/add/" + userId + "/" + amount
-          val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, decreaseCreditUri)
-          Await.result[Event](futureCredit.map { response =>
-            val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
-            PaymentCanceled(userId, orderId, success, operationId)
-          }, TIMOUT_TIME)
-        }, TIMOUT_TIME)
+          else {
+            done = true
+          }
+        }
+        while(!done && elapsedTime < TIMEOUT_TIME.toMillis){
+          elapsedTime += 15
+          Thread.sleep(15)
+        }
+        return resultEvent
 
       case GetPaymentStatus(orderId) =>
         val paymentState: PaymentState = getPaymentState(orderId).getOrElse(throw new InvalidPaymentException(orderId.toString))
@@ -184,27 +202,27 @@ class PaymentRepository extends PersistentActorBase {
     var amount : Long = 0
     var currTuple = ""
     if (response.contains("List((")) { //has more than one item
-      val listOfTuples = response.split("List(")(1).split("), (")
+      val listOfTuples = response.split("List\\(")(1).split("\\), \\(")
       for (tuple <- listOfTuples) {
-        currTuple = tuple replaceAll ("(","")
-        currTuple = tuple replaceAll (")","")
+        currTuple = tuple replaceAll ("\\(","")
+        currTuple = tuple replaceAll ("\\)","")
         amount += currTuple.split(",")(1).toLong
       }
     }
     return amount
   }
 
-  private def sendRequest(method: HttpMethod = HttpMethods.POST, path: String, numTries: Int = 0)
-                         (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(numTries seconds)
-    val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
-    return Http()(system).singleRequest(HttpRequest(method = method, uri = path.toString), settings = connectionPoolSettings).recover{
+  def sendRequest(method: HttpMethod = HttpMethods.POST, path: String, numTries: Int = 0): Future[HttpResponse] = {
+    Http().singleRequest(HttpRequest(method = method, uri = path.toString)).recover{
       case exception: TimeoutException =>
-        if(numTries >= MAX_NUM_TRIES){
+        if(numTries >= 3){
+          println(exception)
           return Future.failed(exception)
         }else {
+          println(exception)
           return sendRequest(method, path, numTries + 1)
         }
+      case ex@ _ => throw new Exception(ex)
     }
   }
 }
