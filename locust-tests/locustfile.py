@@ -5,6 +5,9 @@ USER_PORT = '8080'
 STOCK_PORT = '8081'
 ORDER_PORT = '8082'
 PAYMENT_PORT = '8083'
+def client_request(locust_user):
+
+
 # Users Service
 def create_user(locust_user):
     response = locust_user.client.post(":%s/users/create" %(USER_PORT))
@@ -39,11 +42,14 @@ def subtract_credit(locust_user, credit):
     return response.text
 
 def add_credit(locust_user, credit):
-    response = locust_user.client.post(":%s/users/credit/add/%s/%i" %(USER_PORT, locust_user.user_id, credit))
+    response = locust_user.client.post(":%s/users/credit/add/%s/%i" %(USER_PORT, locust_user.user_id, credit), catch_response=True)
     if response.text[:11] == 'CreditAdded':
         operation_performed = re.search(',true,', response.text)
         if operation_performed is not None:
             locust_user.credit += credit
+    else:
+        response.failure('')
+        print("error adding credit: "+response.text)
     return response.text
 
 # Order Service
@@ -56,7 +62,7 @@ def create_order(locust_user):
             return order_id
     except AttributeError:
         response.failure('')
-        print("error creating order")
+        print("error creating order: "+response.text)
     
 
 def remove_order(locust_user, order_id):
