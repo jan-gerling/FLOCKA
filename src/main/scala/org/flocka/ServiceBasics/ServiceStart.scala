@@ -2,7 +2,6 @@ package org.flocka.ServiceBasics
 
 import akka.actor.{ActorIdentity, ActorPath, ActorSystem, Identify, Props}
 import akka.cluster.sharding.ClusterSharding
-import akka.persistence.journal.leveldb.{SharedLeveldbJournal, SharedLeveldbStore}
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
 import akka.pattern.ask
