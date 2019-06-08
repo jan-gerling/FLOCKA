@@ -6,12 +6,9 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
-import akka.util.Timeout
 import org.flocka.ServiceBasics._
 import org.flocka.Services.Order.OrderServiceComs._
-import org.flocka.sagas.SagaComs.ExecuteSaga
-import org.flocka.sagas.{Saga, SagaSharding}
-import scala.concurrent.duration._
+import org.flocka.sagas.{SagaSharding}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -23,9 +20,6 @@ object OrderService extends ServiceBase {
   override val configName: String = "order-service.conf"
   val service = "orders"
 
-  val timeoutTime: FiniteDuration = 10 seconds
-
-  implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()

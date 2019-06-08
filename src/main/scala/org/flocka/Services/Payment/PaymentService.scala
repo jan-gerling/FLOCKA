@@ -12,7 +12,6 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import org.flocka.ServiceBasics.{MessageTypes, ServiceBase}
 import org.flocka.Services.Payment.PaymentServiceComs._
-
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -25,10 +24,6 @@ object PaymentService extends ServiceBase {
 
   override val configName: String = "payment-service.conf"
   val service = "payment"
-
-  val timeoutTime: FiniteDuration = 10000 millisecond
-
-  implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     /*
