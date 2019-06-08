@@ -56,11 +56,11 @@ class SagaStorage extends PersistentActor {
   val receiveCommand: Receive = {
     case ExecuteSaga(saga: Saga, requesterPath: ActorRef) =>
       println(requesterPath + " wants to execute: " + saga)
-      persist(SagaStored(saga, requesterPath)) { eventStore =>
+      persist(SagaStored(saga, sender())) { eventStore =>
         updateState(eventStore)
         //register tick on execution requested
         tick = context.system.scheduler.schedule(tickInitialDelay millis, tickInterval millis, self, "tick")
-        executeAndPersistSaga(saga: Saga, requesterPath)
+        executeAndPersistSaga(saga: Saga, sender())
       }
     case "tick" =>
       //Correctness guaranteed by using persist instead of persistAsync (this way, only one command is processed at a
@@ -72,11 +72,11 @@ class SagaStorage extends PersistentActor {
 
   def executeAndPersistSaga(saga: Saga, requesterPath: ActorRef): Unit = {
     val eventExecution: Event = saga.execute()
+    requesterPath ! eventExecution
     persist(eventExecution) { eventExecution =>
       updateState(eventExecution)
       println(self.path)
       println(requesterPath)
-      requesterPath ! eventExecution
       tick.cancel() //on execution concluded, cancel tick
     }
   }
