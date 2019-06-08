@@ -62,7 +62,7 @@ case class OrderState(orderId: Long,
 /**
   * Holds all orders
   */
-case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOperations: PushOutHashmapQueueBuffer[Long, Event]) extends PersistentActorState {
+case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOperations: PushOutHashmapQueueBuffer[Long, Event], executingSagasRequester: mutable.Map[Long, ActorRef]) extends PersistentActorState {
   override var doneOperations: PushOutHashmapQueueBuffer[Long, Event] = currentOperations
 
   def updated(event: MessageTypes.Event): OrderRepositoryState = event match {
@@ -78,6 +78,7 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
       doneOperations.push(operationId, event)
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
     case OrderCheckedOut(orderId, true) =>
+      executingSagasRequester -= orderId
       copy(orders += orderId -> orders.get(orderId).get.updated(event))
 
     /**
@@ -93,7 +94,7 @@ case class OrderRepositoryState(orders: mutable.Map[Long, OrderState], currentOp
   * All valid commands/ queries for orders are resolved here and then send back to the requesting actor
   */
 class OrderRepository extends PersistentActorBase with CommandHandler {
-  override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500))
+  override var state: PersistentActorState = new OrderRepositoryState(mutable.Map.empty[Long, OrderState], new PushOutHashmapQueueBuffer[Long, Event](500), mutable.Map.empty[Long, ActorRef])
 
   implicit val executor: ExecutionContext = context.system.dispatcher
   val randomGenerator: scala.util.Random = scala.util.Random
@@ -115,7 +116,7 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
 
   def getOrderRepository(): OrderRepositoryState = {
     state match {
-      case state@OrderRepositoryState(_, _) => return state
+      case state@OrderRepositoryState(_, _, _) => return state
       case state => throw new Exception("Invalid OrderRepository state type for order-repository: " + persistenceId + ". A state ActorState.OrderRepositoryState type was expected, but " + state.getClass.toString + " was found.")
     }
   }
@@ -144,35 +145,31 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
-      case CheckoutOrder(orderId, secShardingActor) =>
-        val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
-        if (orderState.paymentStatus) OrderCheckedOut(orderId, true)
-          var resultEvent = OrderCheckedOut(-1, false)
-          var pending = true
-          var elapsedTime: Duration = 0 millis;
-
-          val saga: Saga = createCheckoutSaga(orderState, orderId, config)
-          println(saga.maxTimeoutTime())
-          implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime *100)
-          val sagaFuture = secShardingActor ? ExecuteSaga(saga, self)
-          sagaFuture.onComplete {
-              case Success(value)  =>
-                value match {
-                  case SagaCompleted(_) => resultEvent = OrderCheckedOut(orderId, true); pending = false; println("AYYYYYYYYYY\nYYYYYYYYYYYYY\nAYYYYYYYYYYYYYYYYYYYYYYYY\n " + value)
-                  case _ => resultEvent = OrderCheckedOut(orderId, false); pending = false; println("SAD\n AYYYYYYYYYY\nYYYYYYYYYY: " + value)
-                }
-              case _ => resultEvent = OrderCheckedOut(orderId, false); pending = false; println("TIMEOUT\n AYYYYYYYYYYY\nYYYYYYYYY: " + sagaFuture)
-          }
-          while (pending && elapsedTime < 100 * saga.maxTimeoutTime) {
-            Thread.sleep(15)
-            elapsedTime = elapsedTime + (15 millis)
-          }
-        println("RETURNING\n\n\n elapsed" + elapsedTime)
-          return resultEvent
-
       case _ => throw new IllegalArgumentException(request.toString)
     }
   }
+
+
+  def specialReceiveCommands: Receive = {
+    case check: CheckoutOrder =>
+      getOrderRepository().executingSagasRequester += check.orderId -> sender()
+      val orderState: OrderState = getOrderState(check.orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
+      if (orderState.paymentStatus) OrderCheckedOut(check.orderId, true)
+
+      val saga: Saga = createCheckoutSaga(orderState, check.orderId, config)
+      implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime  * 2)
+      check.secShardingActor ! ExecuteSaga(saga, self)
+
+    case sagaCompleted: SagaCompleted =>
+      val requester: ActorRef = getOrderRepository().executingSagasRequester.getOrElse(sagaCompleted.saga.id, throw new Exception("Saga requester not found for response"))
+      requester ! sagaCompleted
+    case sagaAborted: SagaFailed =>
+      val requester: ActorRef = getOrderRepository().executingSagasRequester.getOrElse(sagaAborted.saga.id, throw new Exception("Saga requester not found for response"))
+      requester ! sagaAborted
+
+  }
+  override  def receiveCommand = specialReceiveCommands.orElse(super.receiveCommand)
+
 
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
