@@ -10,7 +10,6 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import org.flocka.ServiceBasics._
 import org.flocka.Services.User.UserServiceComs._
-
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -23,8 +22,6 @@ object UserService extends ServiceBase{
   override val configName: String = "user-service.conf"
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "users"
-  val timeoutTime: FiniteDuration = 500 millisecond
-  implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
