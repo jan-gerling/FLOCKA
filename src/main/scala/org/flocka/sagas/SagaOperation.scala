@@ -5,12 +5,11 @@ import java.util.UUID.randomUUID
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
-import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
+import org.flocka.Utils.HttpHelper
 import org.flocka.sagas
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 object ResultState extends Enumeration {
   val SUCCESS, FAILURE, TIMEOUT, NONE = Value
@@ -123,8 +122,15 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     executionState = OperationState.PENDING
     val finalUri: String = buildPath(operationId, path)
 
+    println("Do operation: " + finalUri)
 
-    val responseFuture: Future[HttpResponse] = sendRequest(finalUri)
+    val responseFuture: Future[Any] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.GET, uri = finalUri))
+    responseFuture.onComplete {
+      case Success(response: HttpResponse) => println(response.entity)
+      case Success(response) => println(response)
+      case Failure(exception) => println(exception)
+    }
+
     responseFuture.map( response ⇒
       if(forward)
         forwardOperationDone(conditions(response.toString))
@@ -136,32 +142,47 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
   /**
     * Evaluate the condition of the forward operation and the current SagaOperation state
     */
-  private def forwardOperationDone: Boolean => Boolean={
+  private def forwardOperationDone: Boolean => Boolean = {
     case true   =>
+      println("Finished forward operation: " + pathForward + " in state " + resultState)
+
       if( resultState == ResultState.NONE){
         resultState = ResultState.SUCCESS
-      } else if(resultState == ResultState.TIMEOUT){
+      }
+      else if(resultState == ResultState.TIMEOUT){
         throw new TimeoutException("SagaOperation: " + this.toString + " timed out without timeout strategy.")
-      } else {throw new IllegalStateException("SagaExecutionState: " + executionState + " and SagaOperationState: " + resultState + " are an invalid combination for forward operations." )}
+      }
+      else {
+        throw new IllegalStateException("SagaExecutionState: " + executionState + " and SagaOperationState: "
+          + resultState + " are an invalid combination for forward operations." )
+      }
       executionState = OperationState.DONE
+      println("Finished forward operation: " + pathForward + " and set state to " + resultState)
       true
     case false  =>
+      println("Failed forward operation: " + pathForward + " in state " + resultState)
+
       if(resultState == ResultState.NONE) {
         resultState = ResultState.FAILURE
         executionState = OperationState.IDLE
-      } else if(resultState == ResultState.TIMEOUT){
+      }
+      else if(resultState == ResultState.TIMEOUT){
         executionState = OperationState.DONE
-      } else{
+      }
+      else{
         throw new Exception("Saga Operation was incorrectly executed")
       }
+      println("Failed forward operation: " + pathForward + " and set state to " + resultState)
       false
   }
 
   /**
     * Evaluate the condition of the reverse operation and the current SagaOperation state
     */
-  private def reverseOperationDone: Boolean => Boolean={
+  private def reverseOperationDone: Boolean => Boolean = {
     case true   =>
+      println("Finished reverse operation: " + pathRevert + " in state " + resultState)
+
       if(resultState == ResultState.SUCCESS){
         executionState = OperationState.DONE
         resultState == ResultState.NONE
@@ -175,8 +196,11 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
             " and SagaOperationState: " + resultState +
             " are an invalid combination for reverse operations." )
       }
+      println("Finished revert operation: " + pathForward + " and set state to " + resultState)
       true
     case false  =>
+      println("Failed reverse operation: " + pathRevert + " in state " + resultState)
+
       if (resultState == ResultState.SUCCESS && bestEffortReverse) {
         executionState = OperationState.DONE
       } else if (resultState == ResultState.TIMEOUT && bestEffortReverse) {
@@ -188,26 +212,11 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
       } else {
         throw new Exception("Saga Operation was incorrectly executed")
       }
+      println("Failed revert operation: " + pathForward + " and set state to " + resultState)
       false
   }
 
   private def buildPath(operationId: Long, path: URI): String ={
     return path.toString + "/" + operationId.toString
-  }
-
-  private def sendRequest(path: String, numTries: Int = 0)
-                         (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
-    val connectionSettings = ClientConnectionSettings(system).withIdleTimeout(calulcateTimeoutTime(numTries))
-    val connectionPoolSettings: ConnectionPoolSettings = ConnectionPoolSettings(system).withConnectionSettings(connectionSettings)
-
-    return Http()(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString), settings = connectionPoolSettings).recover{
-      case exception: TimeoutException =>
-        if(numTries >= SagaStorage.MAX_NUM_TRIES && !bestEffortReverse){
-          resultState = ResultState.TIMEOUT
-          return Future.failed(exception)
-        }else {
-          return sendRequest(path, numTries + 1)
-        }
-    }
   }
 }
