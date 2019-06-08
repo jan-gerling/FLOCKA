@@ -125,5 +125,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
       }
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
+
+    case msg@ _ => throw new IllegalArgumentException(msg.toString)
   }
 }

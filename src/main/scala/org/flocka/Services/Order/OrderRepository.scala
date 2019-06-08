@@ -11,10 +11,12 @@ import org.flocka.ServiceBasics.IdResolver.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
+import org.flocka.Services.Payment.PaymentServiceComs.PaymentPayed
 import org.flocka.Utils.PushOutHashmapQueueBuffer
 import org.flocka.sagas.{Saga, SagaOperation}
 import org.flocka.sagas.SagaComs.{ExecuteSaga, SagaCompleted, SagaFailed}
 
+import akka.pattern.{ask, pipe}
 import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -143,18 +145,29 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
         return OrderFound(orderId, orderState.userId, orderState.paymentStatus, orderState.items.toList)
 
       case CheckoutOrder(orderId, secShardingActor) =>
-
         val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
         if(!orderState.paymentStatus) {
+          var resultEvent = OrderCheckedOut(-1, false)
+          var pending = false
+          var elapsedTime: Duration = 0 millis;
+
           val orderState: OrderState = getOrderState(orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
           val saga: Saga = createCheckoutSaga(orderState, orderId, config)
-          implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime)
-          val sagaFuture = commandHandler(ExecuteSaga(saga), Option(secShardingActor))
-          Await.result(sagaFuture.map { responseEvent => responseEvent match {
-            case SagaCompleted(_) => OrderCheckedOut(orderId, true)
-            case SagaFailed(_) => OrderCheckedOut(orderId, false)
-            }
-          }, saga.maxTimeoutTime)
+          implicit val timeout: Timeout = new Timeout(12000 millis)
+          val sagaFuture = secShardingActor ? ExecuteSaga(saga, self)
+          sagaFuture.onComplete {
+            case Success(value) => println("success " + value);
+            case Failure(exception) => throw new Exception(exception)
+          }
+            sagaFuture.map { responseEvent => responseEvent match {
+              case SagaCompleted(_) => resultEvent = OrderCheckedOut(orderId, true); pending = true
+              case SagaFailed(_) => resultEvent = OrderCheckedOut(orderId, false); pending = true
+            }}
+          while(!pending && elapsedTime < 2 * saga.maxTimeoutTime){
+            Thread.sleep(15)
+            elapsedTime = elapsedTime + (15 millis)
+          }
+          return resultEvent
         } else {
           return OrderCheckedOut(orderId, false)
         }
@@ -180,33 +193,33 @@ class OrderRepository extends PersistentActorBase with CommandHandler{
     val orderSaga: Saga = new Saga(sagaId)
 
     for((itemId, _) <- order.items){
-      orderSaga.addConcurrentOperation(createDecreaseStockOperation(itemId, 1, config.getString("loadbalancer.payment.uri")))
+      orderSaga.addConcurrentOperation(createDecreaseStockOperation(itemId, 1, config.getString("loadbalancer.stock.uri")))
     }
-    orderSaga.addConcurrentOperation(createPayOrderOperation(order.orderId, order.userId, config.getString("loadbalancer.stock.uri")))
+    orderSaga.addConcurrentOperation(createPayOrderOperation(order.orderId, order.userId, config.getString("loadbalancer.payment.uri")))
     return orderSaga
   }
 
   def createPayOrderOperation(orderId: Long, userId: Long, paymentServiceUri: String): SagaOperation ={
     val paymentPostCondition: String => Boolean = new Function[String, Boolean] {
       //ToDo: actually check for events not for strings
-      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId)
+      override def apply(result: String): Boolean = return result.contains("PaymentPayed") && result.contains("true") && result.contains(orderId.toString) && result.contains(userId.toString)
     }
 
     return SagaOperation(
-      URI.create(paymentServiceUri+ "/pay/" + userId + "/" + orderId),
-      URI.create(paymentServiceUri + "/cancelPayment/" + userId + "/" + orderId),
+      URI.create(paymentServiceUri+ "/payment/pay/" + userId + "/" + orderId),
+      URI.create(paymentServiceUri + "/payment/cancelPayment/" + userId + "/" + orderId),
       paymentPostCondition)
   }
 
   def createDecreaseStockOperation(itemId: Long, amount: Long, stockServiceUri: String): SagaOperation = {
     val decreaseStockPostCondition: String => Boolean = new Function[String, Boolean] {
       //ToDo: actually check for events not for strings
-      override def apply(result: String): Boolean = result.contains("DecreaseAvailability") && result.contains(itemId) && result.contains(amount)
+      override def apply(result: String): Boolean = result.contains("AvailabilityDecreased") && result.contains("true") && result.contains(itemId.toString)
     }
 
     return SagaOperation(
-      URI.create(stockServiceUri + "/stock/add/" + itemId + "/" + amount),
       URI.create(stockServiceUri + "/stock/subtract/" + itemId + "/" + amount),
+      URI.create(stockServiceUri + "/stock/add/" + itemId + "/" + amount),
       decreaseStockPostCondition)
   }
 }

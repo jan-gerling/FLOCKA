@@ -22,7 +22,9 @@ object OrderService extends ServiceBase {
 
   override val configName: String = "order-service.conf"
   val service = "orders"
-  val timeoutTime: FiniteDuration = 2000 millisecond
+
+  val timeoutTime: FiniteDuration = 10 seconds
+
   implicit val timeout: Timeout = Timeout(timeoutTime)
 
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {

@@ -95,9 +95,11 @@ class Saga(sagaId: Long) {
     if (currentState ==  SagaState.FAILURE || currentState == SagaState.SUCCESS ){
       throw new IllegalAccessException("This Saga " + id + " is not supposed to be executed.")
     }
+    println("Execute Saga: " + id)
     currentState = SagaState.PENDING
 
     while(!completedExecution) {
+      println("In step: " + currentIndex + " in state: " + currentState)
       val stepSuccess = executeStep()
 
       //success
@@ -118,9 +120,11 @@ class Saga(sagaId: Long) {
 
     if(currentState == SagaState.PENDING) {
       currentState = SagaState.SUCCESS
+      println(SagaCompleted(this))
       return SagaCompleted(this)
     } else {
       currentState = SagaState.FAILURE
+      println(SagaFailed(this))
       return SagaFailed(this)
     }
   }
@@ -130,35 +134,54 @@ class Saga(sagaId: Long) {
     var failed = false
     for (currentOperation: SagaOperation <- currentOperations){
         if (currentOperation.isExecutable && currentState == SagaState.PENDING) {
+          println("Execute: " + currentOperation.pathForward)
           pendingOperations += currentOperation
 
           val future: Future[Any] = currentOperation.executeForward
           future.onComplete {
             case Success(true) =>
+              println("1. Did operation: " + currentOperation.pathForward + " and ended in state: " + currentOperation.resultState)
               pendingOperations -= currentOperation
+              println(pendingOperations.size + " is completed: " + completedExecution)
             case Success(false) =>
+              println("2. Did operation: " + currentOperation.pathForward + " and ended in state: " + currentOperation.resultState)
               pendingOperations -= currentOperation
               failed = true
-            case Failure(ex) => throw new Exception(ex)
-            case _ => throw new IllegalArgumentException(future.value.toString)
+              println(pendingOperations.size + " is completed: " + completedExecution)
+            case Failure(ex) =>
+              println("4. Did operation: " + currentOperation.pathForward + " and ended in state: " + currentOperation.resultState)
+              throw new Exception(ex)
+            case _ =>
+              println("3. Did operation: " + currentOperation.pathForward + " and ended in state: " + currentOperation.resultState)
+              throw new IllegalArgumentException(future.value.toString)
           }
         } else if (currentOperation.isSuccess && currentState == SagaState.ROLLBACK) {
+          println("Execute in Rollback: " + currentOperation.pathRevert)
           pendingOperations += currentOperation
 
           val future: Future[Any] = currentOperation.executeRevert
           future.onComplete {
             case Success(true) =>
+              println("1. Did operation: " + currentOperation.pathRevert + " and ended in state: " + currentOperation.resultState)
               pendingOperations -= currentOperation
+              println(pendingOperations.size + " is completed: " + completedExecution)
             case Success(false) =>
+              println("2. Did operation: " + currentOperation.pathRevert + " and ended in state: " + currentOperation.resultState)
               pendingOperations -= currentOperation
               failed = true
-            case Failure(ex) => throw new Exception(ex)
-            case _ => throw new IllegalArgumentException(future.value.toString)
+              println(pendingOperations.size + " is completed: " + completedExecution)
+            case Failure(ex) =>
+              println("4. Did operation: " + currentOperation.pathRevert + " and ended in state: " + currentOperation.resultState)
+              throw new Exception(ex)
+            case _ =>
+              println("3. Did operation: " + currentOperation.pathRevert + " and ended in state: " + currentOperation.resultState)
+              throw new IllegalArgumentException(future.value.toString)
           }
         }
       }
 
     while (pendingOperations.size > 0){Thread.sleep(25)}
+    println("Did step " + currentIndex)
     return !failed
   }
 }
