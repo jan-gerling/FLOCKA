@@ -2,8 +2,9 @@ package org.flocka.ServiceBasics
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http.ServerBinding
+import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
-
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -15,6 +16,9 @@ trait ServiceBase extends CommandHandler with QueryHandler {
   val configName: String
   final def config: Config = ConfigFactory.load(configName)
   final def exposedPort: Int = config.getInt("service.exposed-port")
+
+  def timeoutTime: FiniteDuration = config.getInt("service.timeoutTime") millis
+  implicit def timeout: Timeout = Timeout(timeoutTime)
 
   /**
     * Starts the service
