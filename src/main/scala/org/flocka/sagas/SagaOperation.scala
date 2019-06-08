@@ -3,14 +3,11 @@ package org.flocka.sagas
 import java.net.URI
 import java.util.UUID.randomUUID
 import java.util.concurrent.TimeoutException
-
 import scala.concurrent.duration._
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
-import akka.http.scaladsl.settings.{ClientConnectionSettings, ConnectionPoolSettings}
+import org.flocka.Utils.HttpHelper
 import org.flocka.sagas
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -127,9 +124,10 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
 
     println("Do operation: " + finalUri)
 
-    val responseFuture: Future[HttpResponse] = sendRequest(finalUri)
+    val responseFuture: Future[Any] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.GET, uri = finalUri))
     responseFuture.onComplete {
-      case Success(response) => println(response.entity)
+      case Success(response: HttpResponse) => println(response.entity)
+      case Success(response) => println(response)
       case Failure(exception) => println(exception)
     }
 
@@ -220,22 +218,5 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
 
   private def buildPath(operationId: Long, path: URI): String ={
     return path.toString + "/" + operationId.toString
-  }
-
-  private def sendRequest(path: String, numTries: Int = 0)
-                         (implicit executor: ExecutionContext, system: ActorSystem): Future[HttpResponse] = {
-    return Http(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = path.toString)).recover{
-      case exception: TimeoutException =>
-        if(numTries >= SagaStorage.MAX_NUM_TRIES && !bestEffortReverse){
-          resultState = ResultState.TIMEOUT
-          return Future.failed(exception)
-        }else {
-          return sendRequest(path, numTries + 1)
-        }
-      case exception: Exception =>
-        print("Sending request to " + path + " failed with " + exception)
-        resultState = ResultState.FAILURE
-        return Future.failed(exception)
-    }
   }
 }

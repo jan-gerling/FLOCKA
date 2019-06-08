@@ -12,7 +12,7 @@ import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.PersistentActorBase.{InvalidOperationException, InvalidPaymentException}
 import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Payment.PaymentServiceComs._
-import org.flocka.Utils.PushOutHashmapQueueBuffer
+import org.flocka.Utils.{HttpHelper, PushOutHashmapQueueBuffer}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -107,8 +107,6 @@ class PaymentRepository extends PersistentActorBase {
     getPaymentRepository().payments.get(orderId)
   }
 
-
-
   def buildResponseEvent(request: MessageTypes.Request): Event = {
     request match {
       case PayPayment(userId, orderId, operationId) =>
@@ -116,13 +114,13 @@ class PaymentRepository extends PersistentActorBase {
         var done: Boolean = false
         var resultEvent: PaymentPayed = PaymentPayed(-1, -1, false, -1)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
-        val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
+        val futureOrder: Future[HttpResponse] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.GET, uri = orderUri))
         futureOrder.map { response =>
           if (checkIfOrderExist(response.entity.toString)){
             println(response.entity)
             val amount = getTotalOrderCost(response.entity.toString)
             val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + userId + "/" + amount
-            val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, decreaseCreditUri)
+            val futureCredit: Future[HttpResponse] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.POST, uri = decreaseCreditUri))
             futureCredit.map { response =>
               val success: Boolean = response.entity.toString.contains("CreditSubtracted") && response.entity.toString.contains("true")
               resultEvent = PaymentPayed(userId, orderId, success, operationId)
@@ -130,6 +128,7 @@ class PaymentRepository extends PersistentActorBase {
             }
           }
           else {
+            resultEvent = PaymentPayed(userId, orderId, false, operationId)
             done = true
           }
         }
@@ -143,13 +142,13 @@ class PaymentRepository extends PersistentActorBase {
         var done: Boolean = false
         var resultEvent: MessageTypes.Event = PaymentCanceled(-1, -1, false, -1)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
-        val futureOrder: Future[HttpResponse] = sendRequest(HttpMethods.GET, orderUri)
+        val futureOrder: Future[HttpResponse] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.GET, uri = orderUri))
         futureOrder.map { response =>
           println(response.entity)
           if (checkIfOrderExist(response.entity.toString)){
             val amount = getTotalOrderCost(response.entity.toString)
             val increaseCreditUri = loadBalancerURIUser + "/users/credit/add/" + userId + "/" + amount
-            val futureCredit: Future[HttpResponse] = sendRequest(HttpMethods.POST, increaseCreditUri)
+            val futureCredit: Future[HttpResponse] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.POST, uri = increaseCreditUri))
             futureCredit.map { response =>
               val success: Boolean = response.toString.contains("CreditAdded") && response.toString.contains("true")
               resultEvent = PaymentCanceled(userId, orderId, success, operationId)
@@ -157,6 +156,7 @@ class PaymentRepository extends PersistentActorBase {
             }
           }
           else {
+            resultEvent = PaymentCanceled(userId, orderId, false, operationId)
             done = true
           }
         }
@@ -207,20 +207,5 @@ class PaymentRepository extends PersistentActorBase {
       }
     }
     return amount
-  }
-
-  def sendRequest(method: HttpMethod = HttpMethods.POST, path: String, numTries: Int = 0): Future[HttpResponse] = {
-    Http().singleRequest(HttpRequest(method = method, uri = path.toString)).recover{
-      case exception: TimeoutException =>
-        if(numTries >= 3){
-          println(exception)
-          return Future.failed(exception)
-        }else {
-          println(exception)
-          return sendRequest(method, path, numTries + 1)
-        }
-      case ex@ _ =>
-        return Future.failed(ex)
-    }
   }
 }
