@@ -3,6 +3,7 @@ package org.flocka.sagas
 import akka.actor.ActorSystem
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.sagas.SagaComs._
+
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -92,8 +93,11 @@ class Saga(sagaId: Long) {
     * @return an SagaAborted or SagaCompleted after finishing the Saga either by successfully executing all steps or reverting all executed steps
     */
   def execute()(implicit executor: ExecutionContext, system: ActorSystem): Event = {
-    if (currentState ==  SagaState.FAILURE || currentState == SagaState.SUCCESS ){
-      throw new IllegalAccessException("This Saga " + id + " is not supposed to be executed.")
+    if (currentState ==  SagaState.FAILURE ){
+      return SagaFailed(this)
+    }
+    if (currentState == SagaState.SUCCESS) {
+      return SagaCompleted(this)
     }
     println("Execute Saga: " + id)
     currentState = SagaState.PENDING
@@ -118,6 +122,7 @@ class Saga(sagaId: Long) {
       }
     }
 
+    println("End of execute: " + currentState )
     if(currentState == SagaState.PENDING) {
       currentState = SagaState.SUCCESS
       println(SagaCompleted(this))

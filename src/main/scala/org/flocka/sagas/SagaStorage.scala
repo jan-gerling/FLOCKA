@@ -59,13 +59,15 @@ class SagaStorage extends PersistentActor {
       persist(SagaStored(saga, requesterPath)) { eventStore =>
         updateState(eventStore)
         //register tick on execution requested
-        tick = context.system.scheduler.schedule(tickInitialDelay millis, tickInterval millis, self, "tick")
-        executeAndPersistSaga(saga: Saga, requesterPath)
+        //tick = context.system.scheduler.schedule(tickInitialDelay millis, tickInterval millis, self, "tick")
+        executeAndPersistSaga(saga: Saga, sender())
       }
-    case "tick" =>
+    case "tick" => {
       //Correctness guaranteed by using persist instead of persistAsync (this way, only one command is processed at a
       //time. Subsequent ticks throw IllegalAccessException
+      println("Tick")
       executeAndPersistSaga(state.saga, state.requesterPath)
+    }
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
     case message@ _ => throw new IllegalArgumentException(message.toString)
   }
@@ -74,10 +76,10 @@ class SagaStorage extends PersistentActor {
     val eventExecution: Event = saga.execute()
     persist(eventExecution) { eventExecution =>
       updateState(eventExecution)
-      println(self.path)
-      println(requesterPath)
+      println("self path:" + self.path)
+      println("request path:" + requesterPath)
       requesterPath ! eventExecution
-      tick.cancel() //on execution concluded, cancel tick
+//      tick.cancel() //on execution concluded, cancel tick
     }
   }
 }
