@@ -120,23 +120,23 @@ class PaymentRepository extends PersistentActorBase {
       case pay@PayPayment(userId, orderId, operationId) =>
         var resultEvent: PaymentPayed = new PaymentPayed(-1, -1, false, -1)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
-        val future = for {
-          orderDetails: HttpResponse <- Http(system).singleRequest(HttpRequest(method = HttpMethods.GET, uri = orderUri))
+        val orderDetails: String  = "OrderFound"
+
+    val future = for {
           creditDetails: HttpResponse <-
-          orderDetails.entity.toString.contains("OrderFound") match {
-            case true => val amount = getTotalOrderCost(orderDetails.entity.toString)
+          orderDetails.toString.contains("OrderFound") match {
+            case true => val amount = 100
               val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + pay.userId + "/" + amount
               Http(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = decreaseCreditUri))
-            case false => throw new InvalidOperationException(persistenceId, pay.toString)
+
           }} yield {
           val creditSubtracted: Boolean = creditDetails.entity.toString.contains("CreditSubtracted") && creditDetails.entity.toString.contains("true")
-          println("CREDIT DETAILS:" +  creditDetails)
           resultEvent = PaymentPayed(userId, orderId, creditSubtracted, operationId)
         }
         future.recover {
-          case _: InvalidOperationException => println("FUCKFUCKFUCKFUCKFUCK:\nINVALID OP EXCEPTION"); resultEvent = PaymentPayed(userId, orderId, false, operationId)
-          case _: StreamTcpException => println("FUCKFUCKFUCKFUCKFUCK:\n STREAM TCP");resultEvent = PaymentPayed(userId, orderId, false, operationId)
-          case exception@_ => println("FUCKFUCKFUCKFUCKFUCK:\n" + exception); resultEvent = PaymentPayed(userId, orderId, false, operationId)
+          case _: InvalidOperationException => resultEvent = PaymentPayed(userId, orderId, false, operationId)
+          case _: StreamTcpException => resultEvent = PaymentPayed(userId, orderId, false, operationId)
+          case exception@_ => resultEvent = PaymentPayed(userId, orderId, false, operationId)
         }
 
         var elapsedTime: Long = 0

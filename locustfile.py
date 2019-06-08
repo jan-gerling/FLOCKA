@@ -174,24 +174,24 @@ class UserBehavior(TaskSet):
         credit = random.randint(1, 10)
         subtract_credit(self, credit)
     
-    #@task
-    #class make_order(TaskSequence):
-    #    @seq_task(1)
-    #    def create_new_order(self):
-    #        self.actual_order = create_order(self.parent)
-    #        if self.actual_order is None:
-    #            self.interrupt()
-    #
-    #    @seq_task(2)
-    #    @task(random.randint(1, 5))
-    #    def populate_order(self):
-    #        item = random.choice(self.parent.items_available)
-    #        order_add_item(self.parent, self.actual_order, item)
-    #    '''
-    #    @seq_task(3)
-    #    def checkout(self):
-    #        checkout_order(self.parent, self.actual_order)
-    #    '''
+    @task
+    class make_order(TaskSequence):
+        @seq_task(1)
+        def create_new_order(self):
+            self.actual_order = create_order(self.parent)
+            if self.actual_order is None:
+                self.interrupt()
+    
+        @seq_task(2)
+        @task(random.randint(1, 5))
+        def populate_order(self):
+            item = random.choice(self.parent.items_available)
+            order_add_item(self.parent, self.actual_order, item)
+        '''
+        @seq_task(3)
+        def checkout(self):
+            checkout_order(self.parent, self.actual_order)
+        '''
 class WebsiteUser(HttpLocust):
     task_set = UserBehavior
     min_wait = 500

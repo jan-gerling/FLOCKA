@@ -1,7 +1,7 @@
 package org.flocka.ServiceBasics
 
 import akka.actor.{PoisonPill, ReceiveTimeout}
-import akka.persistence.PersistentActor
+import akka.persistence.{PersistentActor, SaveSnapshotSuccess}
 import org.flocka.ServiceBasics.MessageTypes.Event
 
 import scala.concurrent.duration.FiniteDuration
@@ -111,7 +111,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     */
   def validateState(request: MessageTypes.Request): Boolean
 
-  val receiveCommand: Receive = {
+  def receiveCommand: Receive = {
     case command: MessageTypes.Command =>
       getDoneEvent(command) match {
         case Some(event: Event) => sendResponse(event)
@@ -125,6 +125,8 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
       }
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
+
+    case SaveSnapshotSuccess(_) => //ignore
 
     case msg@ _ => throw new IllegalArgumentException(msg.toString)
   }
