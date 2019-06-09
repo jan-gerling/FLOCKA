@@ -1,7 +1,7 @@
 package org.flocka.ServiceBasics
 
 import akka.actor.{PoisonPill, ReceiveTimeout}
-import akka.persistence.PersistentActor
+import akka.persistence.{PersistentActor, SaveSnapshotSuccess}
 import org.flocka.ServiceBasics.MessageTypes.Event
 
 import scala.concurrent.duration.FiniteDuration
@@ -45,7 +45,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   /**
     * Please don't touch!!!! It works!
     */
-  override def persistenceId = getClass.getName + self.path.name
+  override def persistenceId = getClass.getName + "-" + self.path.parent.name + "-" + self.path.name
 
   val passivateTimeout: FiniteDuration
   val snapShotInterval: Int
@@ -66,9 +66,9 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     * @param event the response to be returned to the serive
     */
   protected def sendPersistentResponse(event: MessageTypes.Event ): Unit = {
-    persist(event) { event =>
-      updateState(event)
-      sender() ! event
+    updateState(event)
+    sender() ! event
+    persistAsync(event) { event =>
 
       //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
       context.system.eventStream.publish(event)
@@ -111,7 +111,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     */
   def validateState(request: MessageTypes.Request): Boolean
 
-  val receiveCommand: Receive = {
+  def receiveCommand: Receive = {
     case command: MessageTypes.Command =>
       getDoneEvent(command) match {
         case Some(event: Event) => sendResponse(event)
@@ -125,5 +125,9 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
       }
 
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
+
+    case SaveSnapshotSuccess(_) => //ignore
+
+    case msg@ _ => throw new IllegalArgumentException(msg.toString)
   }
 }

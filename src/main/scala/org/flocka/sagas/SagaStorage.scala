@@ -1,6 +1,6 @@
 package org.flocka.sagas
 
-import akka.actor.{ActorPath, ActorSelection, ActorSystem, Cancellable, PoisonPill, Props, ReceiveTimeout}
+import akka.actor.{ActorPath, ActorRef, ActorSystem, Cancellable, Identify, PoisonPill, Props, ReceiveTimeout}
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.persistence.{PersistentActor, SnapshotOffer}
 
@@ -18,9 +18,9 @@ object SagaStorage {
   def props(): Props = Props(new SagaStorage())
 }
 
-case class SagaExecutionControllerState(saga: Saga, requesterPath: ActorPath)  {
+case class SagaExecutionControllerState(saga: Saga, requesterPath: ActorRef)  {
   def updated(event: Event): SagaExecutionControllerState = event match {
-    case SagaStored(saga: Saga, requesterPath: ActorPath) =>
+    case SagaStored(saga: Saga, requesterPath: ActorRef) =>
       copy(saga, requesterPath)
     case SagaCompleted(saga: Saga) =>
       copy(saga, requesterPath)
@@ -32,11 +32,10 @@ case class SagaExecutionControllerState(saga: Saga, requesterPath: ActorPath)  {
 class SagaStorage extends PersistentActor {
   override def persistenceId = self.path.name
 
-  var state: SagaExecutionControllerState = new SagaExecutionControllerState(new Saga(-1), self.path)
+  var state: SagaExecutionControllerState = new SagaExecutionControllerState(new Saga(-1), self)
   val config : Config = ConfigFactory.load("saga-execution-controller.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds
   val snapShotInterval: Int = config.getInt("sharding.snapshot-interval")
-
 
   val tickInitialDelay = config.getInt("recovery.tick-initial-delay") //When to check in on saga
   val tickInterval = config.getInt("recovery.tick-interval") // make sure its running every x millis
@@ -55,27 +54,29 @@ class SagaStorage extends PersistentActor {
   }
 
   val receiveCommand: Receive = {
-    case ExecuteSaga(saga: Saga) =>
-      val requesterPath: ActorPath = sender().path
-      persist(SagaStored(saga, requesterPath)) { eventStore =>
+    case ExecuteSaga(saga: Saga, requesterPath: ActorRef) =>
+      println(requesterPath + " wants to execute: " + saga)
+      persist(SagaStored(saga, sender())) { eventStore =>
         updateState(eventStore)
         //register tick on execution requested
         tick = context.system.scheduler.schedule(tickInitialDelay millis, tickInterval millis, self, "tick")
-        executeAndPersistSaga(saga: Saga)
+        executeAndPersistSaga(saga: Saga, sender())
       }
     case "tick" =>
       //Correctness guaranteed by using persist instead of persistAsync (this way, only one command is processed at a
       //time. Subsequent ticks throw IllegalAccessException
-      executeAndPersistSaga(state.saga)
+      executeAndPersistSaga(state.saga, state.requesterPath)
     case ReceiveTimeout => context.parent ! Passivate(stopMessage = PoisonPill)
     case message@ _ => throw new IllegalArgumentException(message.toString)
   }
 
-  def executeAndPersistSaga(saga: Saga): Unit = {
+  def executeAndPersistSaga(saga: Saga, requesterPath: ActorRef): Unit = {
     val eventExecution: Event = saga.execute()
+    requesterPath ! eventExecution
     persist(eventExecution) { eventExecution =>
       updateState(eventExecution)
-      context.actorSelection(state.requesterPath) ! eventExecution
+      println(self.path)
+      println(requesterPath)
       tick.cancel() //on execution concluded, cancel tick
     }
   }

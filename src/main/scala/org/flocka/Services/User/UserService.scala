@@ -23,6 +23,7 @@ object UserService extends ServiceBase{
   val randomGenerator: scala.util.Random  = scala.util.Random
   val service = "users"
 
+
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
 
@@ -113,16 +114,15 @@ object UserService extends ServiceBase{
         post {
           pathEndOrSingleSlash {
             onComplete(commandHandler(AddCredit(userId, amount, operationId.getOrElse{-1L}))) {
-              case Success(value) => complete(value.toString)
-              case Failure(ex) => complete(s"An error occurred: ${ex.getMessage}")
+              case Success(value) => println(value); complete(value.toString)
+              case Failure(ex) => println(ex); complete(s"An error occurred: ${ex.getMessage}")
             }
           }
         }
       }
     }
 
-    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute ~
-      postSubtractCreditRoute ~ postAddCreditRoute
+    def route: Route = postCreateUserRoute ~ deleteRemoveUserRoute ~ getCreditRoute ~ getFindUserRoute ~ postSubtractCreditRoute ~ postAddCreditRoute
 
     implicit val materializer = ActorMaterializer()
     Http().bindAndHandle(route, "0.0.0.0", exposedPort)
