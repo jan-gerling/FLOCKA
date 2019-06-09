@@ -20,6 +20,7 @@ object OrderService extends ServiceBase {
   override val configName: String = "order-service.conf"
   val service = "orders"
 
+
   def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext): Future[ServerBinding] = {
     val regionalIdManager: IdGenerator = new IdGenerator()
     implicit val executor:ExecutionContext = system.dispatcher

@@ -2,11 +2,12 @@ package org.flocka.sagas
 
 import java.net.URI
 import java.util.concurrent.TimeUnit
+
 import akka.pattern.AskTimeoutException
 import org.flocka.ServiceBasics.IdGenerator
 import org.flocka.sagas.SagaComs.{ExecuteSaga, SagaCompleted, SagaFailed}
 import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, pathPrefix, post}
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ActorPath, ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.server.Directives._
@@ -15,6 +16,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import org.flocka.ServiceBasics._
 import org.flocka.Services.User.MockLoadbalancerService
+
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -76,7 +78,7 @@ object SagaExecutionTest extends ServiceBase {
           pathEndOrSingleSlash {
             val t0: Long = System.nanoTime()
             val saga: Saga = createOrderSaga()
-            onComplete(commandHandler(ExecuteSaga(saga))) {
+            onComplete(commandHandler(ExecuteSaga(saga, shardRegion))) {
               case Success(value: SagaCompleted) =>
                 val elapsedTime: Double = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0)
                 val response: String = "Successful Saga: " + value.saga.id + " took: " + elapsedTime + " " + TimeUnit.MILLISECONDS.toString

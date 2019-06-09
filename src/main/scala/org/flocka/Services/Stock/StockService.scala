@@ -22,6 +22,7 @@ object StockService extends ServiceBase {
   val randomGenerator: scala.util.Random = scala.util.Random
   val service = "stock"
 
+
  def bind(shardRegion: ActorRef)(implicit system: ActorSystem, executor: ExecutionContext) : Future[ServerBinding] = {
    val regionalIdManager: IdGenerator = new IdGenerator()
 
