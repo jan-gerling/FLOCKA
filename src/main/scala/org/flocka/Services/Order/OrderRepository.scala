@@ -163,10 +163,10 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
 
     case sagaCompleted: SagaCompleted =>
       val requester: ActorRef = getOrderRepository().executingSagasRequester.getOrElse(sagaCompleted.saga.id, throw new Exception("Saga requester not found for response"))
-      requester ! sagaCompleted
+      requester ! OrderCheckedOut(sagaAborted.saga.id, true)
     case sagaAborted: SagaFailed =>
       val requester: ActorRef = getOrderRepository().executingSagasRequester.getOrElse(sagaAborted.saga.id, throw new Exception("Saga requester not found for response"))
-      requester ! sagaAborted
+      requester ! OrderCheckedOut(sagaAborted.saga.id, false)
 
   }
   override  def receiveCommand = specialReceiveCommands.orElse(super.receiveCommand)
