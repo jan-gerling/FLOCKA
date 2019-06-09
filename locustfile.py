@@ -105,12 +105,22 @@ def find_order(locust_user, order_id):
 def order_add_item(locust_user, order_id, item_id):
     locust_user.client.base_url = ORDER_LB_URI
     #response = locust_user.client.post("%s/orders/addItem/%s/%s" %(ORDER_LB_URI, order_id, item_id))
-    response = locust_user.client.post("/orders/item/add/%s/%s" %(order_id, item_id) , name="/orders/item/add/")
+    response = locust_user.client.post("/orders/item/add/%s/%s" %(order_id, item_id), name="/orders/item/add/", catch_response=True)
+    operation_performed = re.search(',true,', response.text)
+    if operation_performed is not None:
+        response.success()
+    else:
+        response.failure(response.text)
 
 def order_remove_item(locust_user, order_id, item_id):
     locust_user.client.base_url = ORDER_LB_URI
     #response = locust_user.client.post("%s/orders/removeItem/%s/%s" %(ORDER_LB_URI, order_id, item_id))
-    response = locust_user.client.post("/orders/item/remove/%s/%s" %(order_id, item_id))
+    response = locust_user.client.post("/orders/item/remove/%s/%s" %(order_id, item_id), name="/orders/item/remove/", catch_response=True)
+    operation_performed = re.search(',true,', response.text)
+    if operation_performed is not None:
+        response.success()
+    else:
+        response.failure(response.text)
 
 def checkout_order(locust_user, order_id):
     locust_user.client.base_url = ORDER_LB_URI
@@ -126,7 +136,6 @@ def checkout_order(locust_user, order_id):
             print('removed an order that was not mine')
     else:
         response.failure(response.text)
-    print(response.text)
 
 # Stock Service
 def stock_availability(locust_user, item_id):
