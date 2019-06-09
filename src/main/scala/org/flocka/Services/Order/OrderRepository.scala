@@ -3,7 +3,7 @@ package org.flocka.Services.Order
 import java.net.URI
 
 import akka.actor.{Props, _}
-import akka.http.scaladsl.server.Directives.{complete, onComplete}
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
 import akka.persistence.SnapshotOffer
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
@@ -11,15 +11,13 @@ import org.flocka.ServiceBasics.IdResolver.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.{CommandHandler, MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Order.OrderServiceComs._
-import org.flocka.Services.Payment.PaymentServiceComs.PaymentPayed
-import org.flocka.Utils.PushOutHashmapQueueBuffer
-import org.flocka.sagas.{Saga, SagaOperation}
+import org.flocka.Utils.{HttpHelper, PushOutHashmapQueueBuffer}
 import org.flocka.sagas.SagaComs.{ExecuteSaga, SagaCompleted, SagaFailed}
+import org.flocka.sagas.{Saga, SagaOperation}
 
-import akka.pattern.{ask, pipe}
 import scala.collection.mutable
-import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 /**
