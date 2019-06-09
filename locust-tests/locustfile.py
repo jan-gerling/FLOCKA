@@ -6,10 +6,10 @@ STOCK_PORT = '8081'
 ORDER_PORT = '8082'
 PAYMENT_PORT = '8083'
 
-USER_LB_URI="http://UserLB-78627843.eu-central-1.elb.amazonaws.com:8080"
-STOCK_LB_URI="http://StockLB-1528496191.eu-central-1.elb.amazonaws.com:8081"
-ORDER_LB_URI="http://OrderLB-2122101751.eu-central-1.elb.amazonaws.com:8082"
-PAYMENT_LB_URI="http://PaymentLB-1003200854.eu-central-1.elb.amazonaws.com:8083"
+USER_LB_URI="http://localhost:8080"
+STOCK_LB_URI="http://localhost:8081"
+ORDER_LB_URI="http://localhost:8082"
+PAYMENT_LB_URI="http://localhost:8083"
 
 
 # Users Service
@@ -93,42 +93,72 @@ def remove_order(locust_user, order_id):
 
 def find_order(locust_user, order_id):
     locust_user.client.base_url = ORDER_LB_URI
-    response = locust_user.client.get("/orders/find/%s" %(order_id))
-    return response.text
+    response = locust_user.client.get("/orders/find/%s" %(order_id), name="/orders/find/", catch_response=True)
+    try:
+        items_in_order = re.search('List(.+?)\)$', response.text).group(1)
+        response.success()
+        return order_cost_from_tuples_string(items_in_order)
+    except AttributeError:
+        response.failure(response.text)
+        return None
 
 def order_add_item(locust_user, order_id, item_id):
     locust_user.client.base_url = ORDER_LB_URI
     #response = locust_user.client.post("%s/orders/addItem/%s/%s" %(ORDER_LB_URI, order_id, item_id))
-    response = locust_user.client.post("/orders/item/add/%s/%s" %(order_id, item_id) , name="/orders/item/add/")
+    response = locust_user.client.post("/orders/item/add/%s/%s" %(order_id, item_id), name="/orders/item/add/", catch_response=True)
+    operation_performed = re.search(',true,', response.text)
+    if operation_performed is not None:
+        response.success()
+    else:
+        response.failure(response.text)
 
 def order_remove_item(locust_user, order_id, item_id):
     locust_user.client.base_url = ORDER_LB_URI
     #response = locust_user.client.post("%s/orders/removeItem/%s/%s" %(ORDER_LB_URI, order_id, item_id))
-    response = locust_user.client.post("/orders/item/remove/%s/%s" %(order_id, item_id))
+    response = locust_user.client.post("/orders/item/remove/%s/%s" %(order_id, item_id), name="/orders/item/remove/", catch_response=True)
+    operation_performed = re.search(',true,', response.text)
+    if operation_performed is not None:
+        response.success()
+    else:
+        response.failure(response.text)
 
 def checkout_order(locust_user, order_id):
     locust_user.client.base_url = ORDER_LB_URI
-    response = locust_user.client.post("/orders/checkout/%s" %(order_id))
-    if response.status_code == 200:
+    order_cost = find_order(locust_user, order_id)
+    if order_cost is not None:
+        response = locust_user.client.post("/orders/checkout/%s" %(order_id), name="/orders/checkout/", catch_response=True)
+    if response.text[:17] != 'An error occurred':
         try:
+            response.success()
             locust_user.my_orders.remove(order_id)
-            #we also have to substract credit
+            locust_user.credit -= order_cost
         except ValueError:
             print('removed an order that was not mine')
-    return response.text
+    else:
+        response.failure(response.text)
 
 # Stock Service
 def stock_availability(locust_user, item_id):
     locust_user.client.base_url = STOCK_LB_URI
-    return locust_user.client.get("/stock/availability/%s" %(item_id))
+    response = locust_user.client.get("/stock/availability/%s" %(item_id))
     
 def add_stock(locust_user, item_id, quantity):
     locust_user.client.base_url = STOCK_LB_URI
-    return locust_user.client.post("/stock/add/%s/%s" %(item_id, quantity), name="/stock/add/")
+    response = locust_user.client.post("/stock/add/%s/%s" %(item_id, quantity), catch_response=True, name="/stock/add/")
+    operation_performed = re.search(',true,', response.text)
+    if operation_performed is not None:
+        response.success()
+    else:
+        response.failure(response.text)
 
 def subtract_stock(locust_user, item_id, quantity):
     locust_user.client.base_url = STOCK_LB_URI
-    return locust_user.client.post("/stock/subtract/%s/%s" %(item_id, quantity))
+    response = locust_user.client.post("/stock/subtract/%s/%s" %(item_id, quantity), catch_response=True, name="/stock/subtract/")
+    operation_performed = re.search(',true,', response.text)
+    if operation_performed is not None:
+        response.success()
+    else:
+        response.failure(response.text)
 
 def create_item(locust_user):
     locust_user.client.base_url = STOCK_LB_URI
@@ -151,6 +181,12 @@ def populate_items(locust_user):
             items_created.append(new_item)
     return items_created
 
+def order_cost_from_tuples_string(items_string):
+    cost = 0
+    items_price = re.findall('[0-9],(.+?)\)', items_string)
+    for price in items_price:
+        cost += int(price)
+    return cost
 
 class UserBehavior(TaskSet):
     def on_start(self):
@@ -160,7 +196,7 @@ class UserBehavior(TaskSet):
         self.my_orders = []
         self.items_available = populate_items(self)
         add_credit(self, random.randint(1000000, 5000000))
-
+    
     def on_stop(self):
         print('my credit: {}, credit in db: {}'.format(self.credit, get_credit(self)))
 
@@ -187,11 +223,11 @@ class UserBehavior(TaskSet):
         def populate_order(self):
             item = random.choice(self.parent.items_available)
             order_add_item(self.parent, self.actual_order, item)
-        '''
+
         @seq_task(3)
         def checkout(self):
             checkout_order(self.parent, self.actual_order)
-        '''
+        
 class WebsiteUser(HttpLocust):
     task_set = UserBehavior
     min_wait = 500
