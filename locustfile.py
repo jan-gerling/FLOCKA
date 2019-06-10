@@ -110,6 +110,7 @@ def order_add_item(locust_user, order_id, item_id):
     if operation_performed is not None:
         response.success()
     else:
+        print("ORDER ADD ITEM FAILED: " + response.text)
         response.failure(response.text)
 
 def order_remove_item(locust_user, order_id, item_id):
@@ -168,6 +169,7 @@ def create_item(locust_user):
         response.success()
         return item_id
     except AttributeError:
+        print("Create Item Failed: " + response.text)
         response.failure(response.text)
         return None
 
@@ -198,7 +200,8 @@ class UserBehavior(TaskSet):
         add_credit(self, random.randint(1000000, 5000000))
     
     def on_stop(self):
-        print('my credit: {}, credit in db: {}'.format(self.credit, get_credit(self)))
+        #print('my credit: {}, credit in db: {}'.format(self.credit, get_credit(self)))
+        print()
 
     @task
     def add(self):

@@ -46,7 +46,7 @@ object OrderService extends ServiceBase {
       onComplete(commandHandler(CreateOrder(regionalIdManager.generateId(OrderSharding.numShards), userId))) {
         case Success(value) => complete(value.toString)
         case Failure(ex) =>
-          if(ex.toString.contains("InvalidIdException")) {
+          if(ex.toString.contains("InvalidOperationException")) {
             regionalIdManager.increaseEntropy()
             createNewOrder(userId)
           }

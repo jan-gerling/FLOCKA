@@ -41,14 +41,18 @@ object StockService extends ServiceBase {
      super.queryHandler(query, Option(shardRegion))
    }
 
+   def createNewItem(): Route ={
+     onComplete(commandHandler(CreateItem(regionalIdManager.generateId(StockSharding.numShards)))) {
+       case Success(value) => complete(value.toString)
+       case Failure(ex) => if(ex.toString.contains("InvalidOperationException")){regionalIdManager.increaseEntropy() ;createNewItem()} else complete(s"An error occurred: ${ex.getMessage}")
+     }
+   }
+
    val postCreateItemRoute: Route = {
      pathPrefix(service /  "item" / "create") {
        post {
          pathEndOrSingleSlash {
-           onComplete(commandHandler(CreateItem(regionalIdManager.generateId(StockSharding.numShards.toInt)))) {
-             case Success(value) => complete(value.toString)
-             case Failure(ex) => complete(s"An error occured: ${ex.getMessage}")
-           }
+           createNewItem()
          }
        }
      }
