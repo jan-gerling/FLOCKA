@@ -73,7 +73,7 @@ case class UserRepositoryState(users: mutable.Map[Long, UserState], currentOpera
   * All valid commands/ queries for users are resolved here and then send back to the requesting actor (supposed to be UserService via UserActorSupervisor).
   */
 class UserRepository extends PersistentActorBase {
-  override var state: PersistentActorState = new UserRepositoryState(mutable.Map.empty[Long, UserState], new PushOutHashmapQueueBuffer[Long, Event](5000))
+  override var state: PersistentActorState = new UserRepositoryState(mutable.Map.empty[Long, UserState], new PushOutHashmapQueueBuffer[Long, Event](500))
 
   val config: Config = ConfigFactory.load("user-service.conf")
   val passivateTimeout: FiniteDuration = config.getInt("sharding.passivate-timeout") seconds

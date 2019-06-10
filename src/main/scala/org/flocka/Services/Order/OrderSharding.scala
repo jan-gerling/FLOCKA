@@ -11,7 +11,7 @@ import scala.concurrent.duration._
   * Don't forget to configure the number of shards in order-service.conf
   */
 object OrderSharding extends ShardingBase("Order", "order-service.conf"){
-  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[OrderRepository]), childName = "StockRepo", minBackoff = 3.seconds, maxBackoff = 30.seconds, randomFactor = 0.5).withFinalStopMessage(_ == PoisonPill)
+  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[OrderRepository]), childName = "OrderRepo", minBackoff = 1.seconds, maxBackoff = 5.seconds, randomFactor = 0.2).withFinalStopMessage(_ == PoisonPill)
   val supervisorProps = BackoffSupervisor.props(backoffOpts)
 
   override def startSharding(system: ActorSystem): ActorRef = {

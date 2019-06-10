@@ -6,10 +6,15 @@ STOCK_PORT = '8081'
 ORDER_PORT = '8082'
 PAYMENT_PORT = '8083'
 
-USER_LB_URI="http://localhost:8080"
-STOCK_LB_URI="http://localhost:8081"
-ORDER_LB_URI="http://localhost:8082"
-PAYMENT_LB_URI="http://localhost:8083"
+#USER_LB_URI="http://localhost:8080"
+#STOCK_LB_URI="http://localhost:8081"
+#ORDER_LB_URI="http://localhost:8082"
+#PAYMENT_LB_URI="http://localhost:8083"
+
+USER_LB_URI="http://UserLB-78627843.eu-central-1.elb.amazonaws.com:8080"
+STOCK_LB_URI="http://StockLB-1528496191.eu-central-1.elb.amazonaws.com:8081"
+ORDER_LB_URI="http://OrderLB-2122101751.eu-central-1.elb.amazonaws.com:8082"
+PAYMENT_LB_URI="http://PaymentLB-1003200854.eu-central-1.elb.amazonaws.com:8083"
 
 
 # Users Service
@@ -176,7 +181,7 @@ def create_item(locust_user):
 # aux functions
 def populate_items(locust_user):
     items_created = []
-    for i in range(random.randint(5, 10)):
+    for i in range(random.randint(1, 3)):
         new_item = create_item(locust_user)
         if new_item is not None:
             add_stock(locust_user, new_item, 1000)
@@ -222,7 +227,7 @@ class UserBehavior(TaskSet):
                 self.interrupt() 
                 
         @seq_task(2)
-        @task(random.randint(1, 5))
+        @task(random.randint(1, 3))
         def populate_order(self):
             item = random.choice(self.parent.items_available)
             order_add_item(self.parent, self.actual_order, item)
@@ -233,5 +238,5 @@ class UserBehavior(TaskSet):
         
 class WebsiteUser(HttpLocust):
     task_set = UserBehavior
-    min_wait = 500
-    max_wait = 900
+    min_wait = 2000
+    max_wait = 30000
