@@ -11,7 +11,7 @@ import scala.concurrent.duration._
   * Don't forget to configure the number of shards in payment-service.conf
   */
 object PaymentSharding extends ShardingBase("Payment", "payment-service.conf"){
-  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[PaymentRepository]), childName = "StockRepo", minBackoff = 3.seconds, maxBackoff = 30.seconds, randomFactor = 0.5).withFinalStopMessage(_ == PoisonPill)
+  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[PaymentRepository]).withDispatcher("blocking-io-dispatcher"), childName = "PaymentRepo", minBackoff = 1.seconds, maxBackoff = 5.seconds, randomFactor = 0.2).withFinalStopMessage(_ == PoisonPill)
   val supervisorProps = BackoffSupervisor.props(backoffOpts)
   override def startSharding(system: ActorSystem): ActorRef =
     ClusterSharding(system).start(

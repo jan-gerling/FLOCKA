@@ -49,14 +49,14 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     var sum: FiniteDuration = (5 millis);
     for (i <- 1 to sagas.SagaStorage.MAX_NUM_TRIES)
       sum += calulcateTimeoutTime(i)
-    return sum
+    sum
   }
 
   /**
     * Calculate the timeout time for the current amount of connection tries.
     */
   private def calulcateTimeoutTime(currentTry: Int): FiniteDuration = {
-    return Try(baseTimeout * math.pow(timeoutScaling, currentTry)) match {
+    Try(baseTimeout * math.pow(timeoutScaling, currentTry)) match {
       case Success(time: FiniteDuration) => time
       case _ => throw new IllegalArgumentException("Illegal timeout sclaing: " + timeoutScaling)
     }
@@ -66,35 +66,35 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     * @return was this SagaOperation already executed and finished?
     */
   def isCompleted: Boolean = {
-    return executionState == OperationState.DONE
+    executionState == OperationState.DONE
   }
 
   /**
     * @return was this SagaOperation already executed and finished successfully?
     */
   def isSuccess: Boolean = {
-    return isCompleted && resultState == ResultState.SUCCESS
+    isCompleted && resultState == ResultState.SUCCESS
   }
 
   /**
     * @return was this SagaOperation already executed and failed?
     */
   def isFailure: Boolean = {
-    return isCompleted && (resultState == ResultState.TIMEOUT || resultState == ResultState.FAILURE)
+     isCompleted && (resultState == ResultState.TIMEOUT || resultState == ResultState.FAILURE)
   }
 
   /**
     * @return is this SagaOperation currently being executed?
     */
   def isBusy: Boolean = {
-    return executionState == OperationState.PENDING
+    executionState == OperationState.PENDING
   }
 
   /**
     * @return could this SagaOperation be executed in its current state
     */
   def isExecutable: Boolean = {
-    return executionState == OperationState.IDLE
+    executionState == OperationState.IDLE
   }
 
   /**
@@ -104,7 +104,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     * @return true if the operation was done and met the forward conditions, false otherwise
     */
   def executeForward()(implicit executor: ExecutionContext, system: ActorSystem): Future[Boolean] = {
-    return doOperation(forwardId, pathForward, forwardCondition, true)
+    doOperation(forwardId, pathForward, forwardCondition, true)
   }
 
   /**
@@ -114,7 +114,7 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     * @return true if the operation was done and met the revert conditions or bestEffort reverse is true, false otherwise
     */
   def executeRevert()(implicit executor: ExecutionContext, system: ActorSystem): Future[Boolean] = {
-    return doOperation(reverseId, pathRevert, _ => true, false)
+    doOperation(reverseId, pathRevert, _ => true, false)
   }
 
   private def doOperation(operationId: Long, path: URI, conditions: String => Boolean, forward: Boolean)
@@ -125,7 +125,6 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     println("Do operation: " + finalUri)
 
     val responseFuture: Future[Any] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri))
-
 
     responseFuture.map { response ⇒
       if (forward)
@@ -213,6 +212,6 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
   }
 
   private def buildPath(operationId: Long, path: URI): String ={
-    return path.toString + "/" + operationId.toString
+    path.toString + "/" + operationId.toString
   }
 }

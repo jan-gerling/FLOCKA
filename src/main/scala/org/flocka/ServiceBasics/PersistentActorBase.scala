@@ -45,7 +45,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   /**
     * Please don't touch!!!! It works!
     */
-  override def persistenceId = getClass.getName + "-" + self.path.parent.parent.name + "-" + self.path.parent.name + "-" + self.path.name
+  override def persistenceId = getClass.getName + "- " +self.path.parent.parent.name +   "-" + self.path.parent.name + "-" + self.path.name
 
   val passivateTimeout: FiniteDuration
   val snapShotInterval: Int
@@ -66,10 +66,10 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     * @param event the response to be returned to the serive
     */
   protected def sendPersistentResponse(event: MessageTypes.Event ): Unit = {
-    updateState(event)
-    sender() ! event
-    persistAsync(event) { event =>
-      println("PERSISTED: " + event)
+
+    persist(event) { event =>
+      updateState(event)
+      sender() ! event
       //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
       context.system.eventStream.publish(event)
       if (lastSequenceNr % snapShotInterval == 0 && lastSequenceNr != 0)

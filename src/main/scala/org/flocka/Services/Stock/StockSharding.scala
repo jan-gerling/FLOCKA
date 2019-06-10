@@ -10,7 +10,7 @@ import scala.concurrent.duration._
   * Don't forget to configure the number of shards in stock-service.conf
   */
 object StockSharding extends ShardingBase("Stock", "stock-service.conf") {
-  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[StockRepository]), childName = "StockRepo", minBackoff = 3.seconds, maxBackoff = 30.seconds, randomFactor = 0.5).withFinalStopMessage(_ == PoisonPill)
+  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[StockRepository]), childName = "StockRepo", minBackoff = 1.seconds, maxBackoff = 5.seconds, randomFactor = 0.2).withFinalStopMessage(_ == PoisonPill)
   val supervisorProps = BackoffSupervisor.props(backoffOpts)
 
 

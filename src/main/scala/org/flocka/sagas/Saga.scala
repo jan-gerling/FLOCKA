@@ -54,7 +54,7 @@ class Saga(sagaId: Long) {
       }
     }
 
-    return timeoutTime
+     timeoutTime
   }
 
   def addConcurrentOperation(operation: SagaOperation): Unit = {
@@ -71,7 +71,7 @@ class Saga(sagaId: Long) {
     * @return Is this Saga already finished - either Successful or Aborted?
     */
   def isFinished: Boolean = {
-    return (currentState == SagaState.SUCCESS && currentIndex == maxIndex + 1) || (currentState == SagaState.FAILURE && currentIndex < 0)
+     (currentState == SagaState.SUCCESS && currentIndex == maxIndex + 1) || (currentState == SagaState.FAILURE && currentIndex < 0)
   }
 
   /**
@@ -80,7 +80,7 @@ class Saga(sagaId: Long) {
     * @return Is the Saga execution done and state can be changed?
     */
   private def completedExecution: Boolean = {
-    return (currentState == SagaState.PENDING && currentIndex == maxIndex + 1) || (currentState == SagaState.ROLLBACK && currentIndex < 0)
+    (currentState == SagaState.PENDING && currentIndex == maxIndex + 1) || (currentState == SagaState.ROLLBACK && currentIndex < 0)
   }
 
   /**
@@ -97,10 +97,10 @@ class Saga(sagaId: Long) {
     */
   def execute()(implicit executor: ExecutionContext, system: ActorSystem): Event = {
     if (currentState == SagaState.FAILURE) {
-      return SagaFailed(this)
+      SagaFailed(this)
     }
     if (currentState == SagaState.SUCCESS) {
-      return SagaCompleted(this)
+       SagaCompleted(this)
     }
     println("Execute Saga: " + id)
     currentState = SagaState.PENDING
@@ -128,11 +128,11 @@ class Saga(sagaId: Long) {
     if (currentState == SagaState.PENDING) {
       currentState = SagaState.SUCCESS
       println(SagaCompleted(this))
-      return SagaCompleted(this)
+       SagaCompleted(this)
     } else {
       currentState = SagaState.FAILURE
       println(SagaFailed(this))
-      return SagaFailed(this)
+       SagaFailed(this)
     }
   }
 
@@ -191,6 +191,6 @@ class Saga(sagaId: Long) {
       Thread.sleep(25)
     }
     println("Did step " + currentIndex)
-    return !failed
+    !failed
   }
 }

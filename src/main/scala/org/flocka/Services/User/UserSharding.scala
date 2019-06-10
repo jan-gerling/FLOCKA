@@ -11,7 +11,7 @@ import scala.concurrent.duration._
   * Don't forget to configure the number of shards in user-service.conf
   */
 object UserSharding extends ShardingBase("User", "user-service.conf"){
-  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[UserRepository]), childName = "StockRepo", minBackoff = 3.seconds, maxBackoff = 30.seconds, randomFactor = 0.5).withFinalStopMessage(_ == PoisonPill)
+  val backoffOpts : BackoffOnStopOptions = BackoffOpts.onStop(Props(classOf[UserRepository]), childName = "UserRepo", minBackoff = 1.seconds, maxBackoff = 5.seconds, randomFactor = 0.2).withFinalStopMessage(_ == PoisonPill)
   val supervisorProps = BackoffSupervisor.props(backoffOpts)
   override def startSharding(system: ActorSystem): ActorRef = {
     ClusterSharding(system).start(
