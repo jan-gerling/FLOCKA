@@ -185,25 +185,25 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
         else
         //ToDO: do we want to verify the userId?
           return true
-      case AddItem(orderId, itemId, _) =>
-        var itemExists : Boolean = false
-        val finalUri = config.getString("loadbalancer.stock.uri") + "/stock/availability/" + itemId
-        implicit val executor: ExecutionContext = context.dispatcher
-        implicit val system: ActorSystem = context.system
-        val responseFuture: Future[Any] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.GET, uri = finalUri))
-
-        responseFuture.onComplete {
-          case Success(response: HttpResponse) => itemExists = response.entity.toString.contains("AvailabilityGot") && getOrderState(request.key).getOrElse(return false).active
-          case Failure(exception) => itemExists =  false
-        }
-
-        var elapsedTime: Long = 0
-        while(!responseFuture.isCompleted && elapsedTime < 2000){
-          elapsedTime += 15
-          Thread.sleep(15)
-        }
-
-        return itemExists
+      //case AddItem(orderId, itemId, _) =>
+      //  var itemExists : Boolean = false
+      //  val finalUri = config.getString("loadbalancer.stock.uri") + "/stock/availability/" + itemId
+      //  implicit val executor: ExecutionContext = context.dispatcher
+      //  implicit val system: ActorSystem = context.system
+      //  val responseFuture: Future[Any] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.GET, uri = finalUri))
+//
+      //  responseFuture.onComplete {
+      //    case Success(response: HttpResponse) => itemExists = response.entity.toString.contains("AvailabilityGot") && getOrderState(request.key).getOrElse(return false).active
+      //    case Failure(exception) => itemExists =  false
+      //  }
+//
+      //  var elapsedTime: Long = 0
+      //  while(!responseFuture.isCompleted && elapsedTime < 2000){
+      //    elapsedTime += 15
+      //    Thread.sleep(15)
+      //  }
+//
+      //  return itemExists
       case _ => return getOrderState(request.key).getOrElse(return false).active
     }
   }
