@@ -155,18 +155,22 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
     case check: CheckoutOrder =>
       getOrderRepository().executingSagasRequester += check.orderId -> sender()
       val orderState: OrderState = getOrderState(check.orderId).getOrElse(throw new InvalidIdException("Order does not exist."))
-      if (orderState.paymentStatus) OrderCheckedOut(check.orderId, true)
+      if (orderState.paymentStatus) sender() ! OrderCheckedOut(check.orderId, true)
 
       val saga: Saga = createCheckoutSaga(orderState, check.orderId, config)
-      implicit val timeout: Timeout = new Timeout(saga.maxTimeoutTime  * 2)
       check.secShardingActor ! ExecuteSaga(saga, self)
 
     case sagaCompleted: SagaCompleted =>
       val requester: ActorRef = getOrderRepository().executingSagasRequester.getOrElse(sagaCompleted.saga.id, throw new Exception("Saga requester not found for response"))
-      requester ! OrderCheckedOut(sagaAborted.saga.id, true)
+      val evt = OrderCheckedOut(sagaCompleted.saga.id, true)
+      requester ! evt
+      persistAsync(evt){evt =>}
+
     case sagaAborted: SagaFailed =>
       val requester: ActorRef = getOrderRepository().executingSagasRequester.getOrElse(sagaAborted.saga.id, throw new Exception("Saga requester not found for response"))
-      requester ! OrderCheckedOut(sagaAborted.saga.id, false)
+      val evt = OrderCheckedOut(sagaAborted.saga.id, false)
+      requester ! evt
+      persistAsync(evt){evt =>}
 
   }
   override  def receiveCommand = specialReceiveCommands.orElse(super.receiveCommand)
@@ -176,7 +180,6 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
     request match {
       case CreateOrder(orderId, userId) =>
         if (getOrderState(orderId).isDefined) {
-          sender() ! akka.actor.Status.Failure(InvalidIdException(orderId.toString))
           return false
         }
         else
@@ -194,7 +197,11 @@ class OrderRepository extends PersistentActorBase with CommandHandler {
           case Failure(exception) => itemExists =  false
         }
 
-        while(!responseFuture.isCompleted) Thread.sleep(15)
+        var elapsedTime: Long = 0
+        while(!responseFuture.isCompleted && elapsedTime < 2000){
+          elapsedTime += 15
+          Thread.sleep(15)
+        }
 
         return itemExists
       case _ => return getOrderState(request.key).getOrElse(return false).active

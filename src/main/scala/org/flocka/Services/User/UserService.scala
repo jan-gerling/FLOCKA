@@ -46,7 +46,7 @@ object UserService extends ServiceBase{
       //ToDO: fix number generation, because it is actually in range Long and should use UserIdManager.shardregion
       onComplete(commandHandler(CreateUser(regionalIdManager.generateId(UserSharding.numShards)))) {
         case Success(value) => complete(value.toString)
-        case Failure(ex) => if(ex.toString.contains("InvalidIdException")){regionalIdManager.increaseEntropy() ;createNewUser()} else complete(s"An error occurred: ${ex.getMessage}")
+        case Failure(ex) => if(ex.toString.contains("InvalidOperationException")){regionalIdManager.increaseEntropy() ;createNewUser()} else complete(s"An error occurred: ${ex.getMessage}")
       }
     }
 

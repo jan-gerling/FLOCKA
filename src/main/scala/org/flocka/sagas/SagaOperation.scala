@@ -125,18 +125,14 @@ case class SagaOperation(pathForward: URI, pathRevert: URI, forwardCondition: St
     println("Do operation: " + finalUri)
 
     val responseFuture: Future[Any] = HttpHelper.sendRequest(HttpRequest(method = HttpMethods.POST, uri = finalUri))
-    responseFuture.onComplete {
-      case Success(response: HttpResponse) => println(response.entity)
-      case Success(response) => println(response)
-      case Failure(exception) => println(exception)
-    }
 
-    responseFuture.map( response ⇒
-      if(forward)
+
+    responseFuture.map { response ⇒
+      if (forward)
         forwardOperationDone(conditions(response.toString))
       else
         reverseOperationDone(conditions(response.toString))
-    )
+    }
   }
 
   /**

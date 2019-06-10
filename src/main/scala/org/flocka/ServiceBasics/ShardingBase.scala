@@ -15,10 +15,11 @@ import org.flocka.ServiceBasics.MessageTypes.Request
 abstract case class ShardingBase(name: String, configPath: String) {
   def startSharding(system: ActorSystem): ActorRef
 
+
   final val extractEntityId: ShardRegion.ExtractEntityId = {
     case request: Request =>
       (request.entityId.toString, request)
-    case _ => throw new IllegalArgumentException()
+    case other@_ => throw new IllegalArgumentException(other.toString)
   }
 
   final val extractShardId: ShardRegion.ExtractShardId = {

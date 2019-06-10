@@ -3,6 +3,7 @@ package org.flocka.Services.Stock
 import akka.actor.Props
 import akka.persistence.SnapshotOffer
 import com.typesafe.config.{Config, ConfigFactory}
+import org.flocka.ServiceBasics.IdResolver.InvalidIdException
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.PersistentActorBase.InvalidStockException
 import org.flocka.ServiceBasics._
@@ -106,12 +107,13 @@ class StockRepository extends PersistentActorBase{
   def validateState(request: MessageTypes.Request): Boolean = {
     request match {
       case CreateItem(itemId) =>
-        if (getStockState(itemId).isDefined)
-          throw new InvalidStockException ("Stock of item itd " + itemId + " Already exists.")
-        else
+        if (getStockState(itemId).isDefined) {
+          return false
+
+        }else
           return true
       case DecreaseAvailability(itemId, amount, _) =>
-        val stockState = getStockState(itemId).getOrElse(throw new InvalidStockException ("Stock does not exist."))
+        val stockState = getStockState(itemId).getOrElse(return false)
         return stockState.availability >= amount
       case _ => getStockState(request.key).isDefined
     }

@@ -3,21 +3,21 @@ package org.flocka.Services.Payment
 
 import akka.actor.Props
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
-
 import akka.persistence.SnapshotOffer
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flocka.ServiceBasics.MessageTypes.Event
 import org.flocka.ServiceBasics.PersistentActorBase.{InvalidOperationException, InvalidPaymentException}
 import org.flocka.ServiceBasics.{MessageTypes, PersistentActorBase, PersistentActorState}
 import org.flocka.Services.Payment.PaymentServiceComs._
-
-import org.flocka.Utils.{PushOutHashmapQueueBuffer}
+import org.flocka.Utils.PushOutHashmapQueueBuffer
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.StreamTcpException
+
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 
 /**
@@ -55,12 +55,12 @@ case class PaymentRepositoryState(payments: mutable.Map[Long, PaymentState], cur
     case PaymentPayed(userId, orderId, status, operationId) =>
       doneOperations.push(operationId, event)
       payments -= orderId
-      payments += orderId -> new PaymentState(userId, orderId, true)
+      payments += orderId -> new PaymentState(userId, orderId, true).updated(event)
       copy(payments)
     case PaymentCanceled(userId, orderId, status, operationId) =>
       doneOperations.push(operationId, event)
       payments -= orderId
-      payments += orderId -> new PaymentState(userId, orderId, false)
+      payments += orderId -> new PaymentState(userId, orderId, false).updated(event)
       copy(payments)
     case _ => throw new IllegalArgumentException(event.toString + "is not a valid event for PaymentActor.")
   }
@@ -82,7 +82,7 @@ class PaymentRepository extends PersistentActorBase {
 
   val MAX_NUM_TRIES = 3
 
-  val TIMEOUT_TIME = 10000
+  val TIMEOUT_TIME = 5000
 
 
   val config: Config = ConfigFactory.load("payment-service.conf")
@@ -117,33 +117,29 @@ class PaymentRepository extends PersistentActorBase {
   def buildResponseEvent(request: MessageTypes.Request): Event = {
     request match {
 
-      case pay@PayPayment(userId, orderId, operationId) =>
+      case pay@ PayPayment(userId, orderId, operationId) =>
         var resultEvent: PaymentPayed = new PaymentPayed(-1, -1, false, -1)
         val orderUri = loadBalancerURIOrder + "/orders/find/" + orderId
-        val orderDetails: String  = "OrderFound"
-
-    val future = for {
-          creditDetails: HttpResponse <-
-          orderDetails.toString.contains("OrderFound") match {
-            case true => val amount = 100
+        val future = for {
+          orderDetails: HttpResponse       <- Http(system).singleRequest(HttpRequest(method = HttpMethods.GET, uri = orderUri) )
+          creditDetails: HttpResponse      <-
+          orderDetails.entity.toString.contains("OrderFound") match {
+            case true => val amount = getTotalOrderCost(orderDetails.entity.toString)
               val decreaseCreditUri = loadBalancerURIUser + "/users/credit/subtract/" + pay.userId + "/" + amount
               Http(system).singleRequest(HttpRequest(method = HttpMethods.POST, uri = decreaseCreditUri))
-
+            case false => throw new InvalidOperationException(persistenceId, pay.toString)
           }} yield {
-          val creditSubtracted: Boolean = creditDetails.entity.toString.contains("CreditSubtracted") && creditDetails.entity.toString.contains("true")
+          val creditSubtracted: Boolean  = creditDetails.entity.toString.contains("CreditSubtracted") && creditDetails.entity.toString.contains("true")
           resultEvent = PaymentPayed(userId, orderId, creditSubtracted, operationId)
         }
         future.recover {
           case _: InvalidOperationException => resultEvent = PaymentPayed(userId, orderId, false, operationId)
           case _: StreamTcpException => resultEvent = PaymentPayed(userId, orderId, false, operationId)
-          case exception@_ => resultEvent = PaymentPayed(userId, orderId, false, operationId)
+          case exception@ _ => println(exception); resultEvent = PaymentPayed(userId, orderId, false, operationId)
         }
 
         var elapsedTime: Long = 0
-        while (resultEvent.userId < 0) {
-          if (elapsedTime > TIMEOUT_TIME) {
-            throw new Exception("Timeout!")
-          }
+        while(resultEvent.userId < 0 && elapsedTime < TIMEOUT_TIME){
           elapsedTime += 15
           Thread.sleep(15)
         }

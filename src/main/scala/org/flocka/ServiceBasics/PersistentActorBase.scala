@@ -45,7 +45,7 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
   /**
     * Please don't touch!!!! It works!
     */
-  override def persistenceId = getClass.getName + "-" + self.path.parent.name + "-" + self.path.name
+  override def persistenceId = getClass.getName + "-" + self.path.parent.parent.name + "-" + self.path.parent.name + "-" + self.path.name
 
   val passivateTimeout: FiniteDuration
   val snapShotInterval: Int
@@ -69,13 +69,20 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
     updateState(event)
     sender() ! event
     persistAsync(event) { event =>
-
+      println("PERSISTED: " + event)
       //publish on event stream? https://doc.akka.io/api/akka/current/akka/event/EventStream.html
       context.system.eventStream.publish(event)
       if (lastSequenceNr % snapShotInterval == 0 && lastSequenceNr != 0)
         saveSnapshot(state)
     }
   }
+
+  //override def preRestart(reason: Throwable, message: Option[Any]) {
+  //  message match {
+  //    case Some(x) => self ! x
+  //    case None => ;
+  //  }
+  //}
 
   protected def respond(request: MessageTypes.Request): Unit = {
     if (!validateState(request)) {
@@ -128,6 +135,9 @@ abstract class PersistentActorBase extends PersistentActor with QueryHandler {
 
     case SaveSnapshotSuccess(_) => //ignore
 
+    case evt: MessageTypes.Event => //ignore, caused by restart of actor performing the failing command.
+
     case msg@ _ => throw new IllegalArgumentException(msg.toString)
   }
 }
+
